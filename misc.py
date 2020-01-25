@@ -29,6 +29,19 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
+'''
+https://github.com/LLNL/fastcam
+
+A toolkit for efficent computation of saliency maps for explainable 
+AI attribution.
+
+This work was performed under the auspices of the U.S. Department of Energy 
+by Lawrence Livermore National Laboratory under Contract DE-AC52-07NA27344 
+and was supported by the LLNL-LDRD Program under Project 18-ERD-021 and 
+Project 17-SI-003. 
+
+Software released as LLNL-CODE-802426.
+'''
 
 import torch
 import cv2
