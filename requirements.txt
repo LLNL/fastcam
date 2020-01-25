@@ -1,0 +1,6 @@
+numpy
+jupyter
+torch
+torchvision
+opencv-python-nonfree
+pytorch_gradcam
