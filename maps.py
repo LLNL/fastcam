@@ -128,7 +128,7 @@ class TruncNormalEntMap(nn.Module):
         s   = torch.std(x,    dim=1)
         a   = self._compute_alpha(m, s)
         pdf = self._compute_pdf(a)  
-        cdf = self._compute_cdf(a) + 0.0000001  # Prevent log AND division by zero by adding a very small number
+        cdf = self._compute_cdf(a) + 0.0000001  # Preventlog AND division by zero by adding a very small number
         Z   = 1.0 - cdf 
         T1  = torch.log(self.c3*s*Z)
         T2  = (a*pdf)/(2.0*Z)
@@ -192,7 +192,7 @@ class CombineSaliencyMaps(nn.Module):
         weights is an optional list of weights for each layer e.g. [1, 2, 3, 4, 5]
     '''
     
-    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear',magnitude=False):
+    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear', magnitude=False):
         
         super(CombineSaliencyMaps, self).__init__()
         
