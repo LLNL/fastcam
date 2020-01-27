@@ -7,14 +7,17 @@ Additionally, the expected accuracy of the saliency map is increased slightly. T
 
 ![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/fast-cam.ILSVRC2012_val_00049934.jpg)
                          
-## Package Requirements
+## Installation
 
 The FastCAM package runs on **Python 3.x**. The package should run on **Python 2.x**. However since 
 the end of product life for 2.x has been announced, we will not actively support it going forward. 
 All extra requirements are available through *pip* installation. On *IBM Power* based architecture, 
 some packages may have to be hand installed, but it's totally doable. 
 
-## Installation
+The primary fuctionality is demonstrated using a **Jupyter notebook**. By following it, you should be
+able to see how to use FastCAM on your own deep network. 
+
+![Get Ready for EXCITEMENT](https://steemitimages.com/p/DVAkPJXe6RxaMiozqQxRKBpPCPSqM5k9eEaBqfuGYnq1rZoVgJfgBwH61WPbdCwxa7N5TvBS59Jxtv?format=match&mode=fit&width=640)
 
 ### Required Packages
 
@@ -47,11 +50,13 @@ Next you will need to start the jupyter notebook:
 
 	jupyter notebook
 	
-It should start the jupyter web server and create an instance in your browser. You can then click on
+It should start the jupyter web service and create a notebook instance in your browser. You can then click on
 
 	demo_fast-cam.ipynb
 	
 To run the notebook, click on the double arrow (fast forward) button at the top of the web page. 
+
+![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/option.jpg)
 
 ### Installation Notes
 

@@ -41,6 +41,8 @@ and was supported by the LLNL-LDRD Program under Project 18-ERD-021 and
 Project 17-SI-003. 
 
 Software released as LLNL-CODE-802426.
+
+See also: https://arxiv.org/abs/1911.11293
 '''
 
 from __future__ import print_function, division, absolute_import
