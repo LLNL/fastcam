@@ -48,7 +48,7 @@ import cv2
 import numpy as np
 import maps
 from torchvision import models, transforms
-from statistics import stdev
+from statistics import stdev # Built-in
 
 # ******************************************************************************************************************* 
 def from_gpu(data):
