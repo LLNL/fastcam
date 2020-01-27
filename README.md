@@ -3,8 +3,10 @@
 FastCAM creates a saliency map using SMOE Scale saliency maps as described in our paper on 
 [ArXiv:1911.11293](https://arxiv.org/abs/1911.11293). We obtain a highly significant speed-up by replacing
 the Guided Backprop component typically used along side GradCAM with our SMOE Scale saliency map.
-Additionally, the expected accuracy of the saliency map is increased slightly. Thus, **FastCAM is much faster and a little bit more accurate than GradCAM+Guided Backprop.** 
+Additionally, the expected accuracy of the saliency map is increased slightly. Thus, **FastCAM is three orders of magnitude faster and a little bit more accurate than GradCAM+Guided Backprop with SmoothGrad.** 
 
+![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/fast-cam.ILSVRC2012_val_00049934.jpg)
+                         
 ## Package Requirements
 
 The FastCAM package runs on **Python 3.x**. The package should run on **Python 2.x**. However since 
