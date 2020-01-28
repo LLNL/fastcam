@@ -93,7 +93,7 @@ class SMOEScaleMap(nn.Module):
             This is one form. We can also use the log only form.
         '''
         m   = torch.mean(x,dim=1)
-        k   = torch.log2(m) - torch.mean(torch.log2(x),dim=1)
+        k   = torch.log2(m) - torch.mean(torch.log2(x), dim=1)
         
         th  = k * m
         
@@ -172,7 +172,7 @@ class TruncNormalEntMap(nn.Module):
         s   = torch.std(x,    dim=1)
         a   = self._compute_alpha(m, s)
         pdf = self._compute_pdf(a)  
-        cdf = self._compute_cdf(a) + 0.0000001  # Preventlog AND division by zero by adding a very small number
+        cdf = self._compute_cdf(a) + 0.0000001  # Prevent log AND division by zero by adding a very small number
         Z   = 1.0 - cdf 
         T1  = torch.log(self.c3*s*Z)
         T2  = (a*pdf)/(2.0*Z)

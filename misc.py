@@ -333,8 +333,7 @@ class SmoothGrad:
         
         for i in range(self.iters):
             
-            #noise           = np.random.normal(0, stdev, x_value.shape)
-            noise           = torch.normal(mean=0,std=stdev,size=in_tensor.size())
+            noise           = torch.normal(mean=0, std=stdev, size=in_tensor.size())
             in_tensor_noise = in_tensor + noise
             
             model.eval()
