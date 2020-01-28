@@ -28,7 +28,7 @@ When you run the installation, these packages should automatically install for y
 	opencv-python
 	pytorch_gradcam
 
-### Install and Run the Demo
+### Install and Run the Demo!
 
 ![Get Ready for EXCITEMENT](https://steemitimages.com/p/DVAkPJXe6RxaMiozqQxRKBpPCPSqM5k9eEaBqfuGYnq1rZoVgJfgBwH61WPbdCwxa7N5TvBS59Jxtv?format=match&mode=fit&width=640)
 
