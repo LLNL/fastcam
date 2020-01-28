@@ -44,9 +44,6 @@ Software released as LLNL-CODE-802426.
 
 See also: https://arxiv.org/abs/1911.11293
 '''
-
-from __future__ import print_function, division, absolute_import
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
