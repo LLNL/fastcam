@@ -33,6 +33,8 @@ When you run the installation, these packages should automatically install for y
 
 ![Get Ready for EXCITEMENT](https://steemitimages.com/p/DVAkPJXe6RxaMiozqQxRKBpPCPSqM5k9eEaBqfuGYnq1rZoVgJfgBwH61WPbdCwxa7N5TvBS59Jxtv?format=match&mode=fit&width=640)
 
+This will run our [Jupyter Notebook](https://github.com/LLNL/fastcam/blob/master/demo_fast-cam.ipynb) on your local computer.
+
 These are our recommended installation steps:
 
 	git clone git@github.com:LLNL/fastcam.git 
