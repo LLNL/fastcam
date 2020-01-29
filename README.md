@@ -22,7 +22,8 @@ able to see how to use FastCAM on your own deep network.
 When you run the installation, these packages should automatically install for you. 
 
 	numpy
-	jupyter
+	jupyterlab
+	notebook
 	torch
 	torchvision
 	opencv-python
@@ -82,5 +83,18 @@ If you want to know where that is, try:
 you will see:
 
 	/path/to/my/python/bin/python
+	
+## Contact
+
+Questions, concerns and friendly banter can be addressed to: 
+
+T. Nathan Mundhenk [mundhenk1@llnl.gov](mundhenk1@llnl.gov)
+
+## License
+
+FastCAM is distributed under the [BSD 3-Clause License](https://github.com/LLNL/fastcam/blob/master/LICENSE).
+
+LLNL-CODE-802426
+
 
 

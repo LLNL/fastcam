@@ -119,12 +119,8 @@ class CaptureLayerInput(CaptureLayerData):
         
         if self.device is None or self.device == o.device:
             
-            self.data = list()
-            
-            for n in range(len(i)):
-
-                self.data.append(self.post_process(i[n].data))
-                
+            self.data = [n.data for n in i]
+    
 # *******************************************************************************************************************
 # *******************************************************************************************************************             
 def LoadImageToTensor(file_name, device, norm=True):
@@ -139,7 +135,7 @@ def LoadImageToTensor(file_name, device, norm=True):
     assert(cv_im is not None)
     cv_im       = (cv2.cvtColor(cv_im,  cv2.COLOR_BGR2RGB) / 255.0).astype(np.float32)  # Put in a float image and range from 0 to 1
     if norm:
-        pt_im       = toNorm(toTensor(cv_im))                                               # Do mean subtraction and divide by std. Then convert to Tensor object.
+        pt_im       = toNorm(toTensor(cv_im))                                           # Do mean subtraction and divide by std. Then convert to Tensor object.
     else:
         pt_im       = toTensor(cv_im)
     
@@ -218,7 +214,7 @@ def TensorToNumpyImages(tens):
     return np_im
 
 # *******************************************************************************************************************             
-def AlphaBlend(im1,im2,alpha=0.75):
+def AlphaBlend(im1, im2, alpha=0.75):
     
     assert(isinstance(im1,np.ndarray) or torch.is_tensor(im1))
     assert(isinstance(im2,np.ndarray) or torch.is_tensor(im2))
@@ -232,7 +228,7 @@ def AlphaBlend(im1,im2,alpha=0.75):
     return (im1*t_alpha + im2*r_alpha*(1.0 - t_alpha))/norm
 
 # *******************************************************************************************************************             
-def AlphaMask(im1,mask,alpha=1.0):
+def AlphaMask(im1, mask, alpha=1.0):
     
     assert(isinstance(im1,np.ndarray) or torch.is_tensor(im1))
     assert(isinstance(mask,np.ndarray) or torch.is_tensor(mask))
@@ -252,7 +248,7 @@ def AlphaMask(im1,mask,alpha=1.0):
 
 
 # *******************************************************************************************************************             
-def AttenuateBorders(im,ammount=[0.333,0.666]):
+def AttenuateBorders(im, ammount=[0.333,0.666]):
     
     assert(isinstance(im,np.ndarray) or torch.is_tensor(im))
     assert(isinstance(ammount,list))
@@ -269,6 +265,20 @@ def AttenuateBorders(im,ammount=[0.333,0.666]):
     
     return im
 
+# *******************************************************************************************************************             
+def RangeNormalize(im):
+    
+    assert(torch.is_tensor(im))
+    
+    imax = torch.max(im)
+    imin = torch.min(im)
+    rng  = imax - imin
+    
+    if rng != 0:
+        return (im - imin)/rng
+    else:
+        return im
+        
 # *******************************************************************************************************************             
 class DeNormalize:
     
@@ -300,7 +310,7 @@ class DeNormalize:
 # *******************************************************************************************************************             
 class SmoothGrad:
     
-    def __init__(self,iters=15,magnitude=True,stdev_spread=.15, maps_magnitude=False):
+    def __init__(self, iters=15, magnitude=True, stdev_spread=.15, maps_magnitude=False):
         
         self.iters          = iters
         self.magnitude      = magnitude
