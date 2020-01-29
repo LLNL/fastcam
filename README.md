@@ -39,12 +39,6 @@ These are our recommended installation steps:
 	python3 -m venv venv3 
 	source venv3/bin/activate
 	pip install -r requirements.txt
-	
-You may need to add the path of your libraries because of a bug in PyTorch GradCAM. So, for instance, do this:
-
-	export PYTHONPATH=$PYTHONPATH:/path/to/my/python/lib/python3.7/site-packages/
-
-See notes below for more details. 
 
 Next you will need to start the jupyter notebook:
 
