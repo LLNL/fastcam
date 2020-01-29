@@ -1,5 +1,6 @@
 numpy
-jupyter
+jupyterlab
+notebook
 torch
 torchvision
 opencv-python-nonfree
