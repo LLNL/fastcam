@@ -29,6 +29,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
+
 '''
 https://github.com/LLNL/fastcam
 
@@ -47,6 +48,9 @@ See also: https://arxiv.org/abs/1911.11293
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import maps
+import misc
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):
@@ -179,6 +183,189 @@ class TruncNormalEntMap(nn.Module):
         ent = T1 + T2
 
         return ent
+# *******************************************************************************************************************
+class MeanMap(nn.Module):
+    r'''
+        Compute vanilla standard deviation on a 4D tensor. This acts as a standard PyTorch layer. 
+    
+        Input should be:
+        
+        (1) A tensor of size [batch x channels x height x width] 
+        (2) Recommend a tensor with only positive values. (After a ReLU)
+        
+        Output is a 3D tensor of size [batch x height x width]
+    '''
+    def __init__(self):
+        
+        super(MeanMap, self).__init__()
+        
+    def forward(self, x):
+        
+        assert(torch.is_tensor(x))
+        assert(len(x.size()) > 2)
+        
+        x = torch.mean(x,dim=1)
+        
+        return x
+    
+# *******************************************************************************************************************
+# ******************************************************************************************************************* 
+class ScoreMap(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, scores):
+        
+        ctx.save_for_backward(scores)
+        return torch.tensor(1)
+    
+    @staticmethod
+    def backward(ctx, grad):
+                
+        saved        = ctx.saved_tensors
+        g_scores     = torch.ones_like(saved[0])
+        
+        return g_scores
+
+# *******************************************************************************************************************         
+class FastCAM(object):
+    r"""
+    Calculate SMOE Scale GradCAM salinecy map.
+    
+    This code is derived from pytorch-gradcam
+    """
+    def __init__(self, layers, model, method='V1', maps_method=maps.SMOEScaleMap):
+        
+        assert(isinstance(layers, list))
+        assert(isinstance(method,str))
+        assert(callable(maps_method))
+        
+        self.getSmap    = maps_method()
+        self.getNorm    = maps.Normalize2D()
+        self.layers     = layers
+        self.model      = model
+        self.method     = method
+        self.forward    = True
+        self.backward   = True
+        
+        self.activation_hooks   = []
+        self.gradient_hooks     = []
+        
+        if self.method=='V0':
+            self.backward = False
+        if self.method=='V5':
+            self.forward = False
+            
+        if self.forward:
+            for i,l in enumerate(layers):
+                h   = misc.CaptureLayerOutput(post_process=None)
+                _   = self.model._modules[l].register_forward_hook(h)
+                self.activation_hooks.append(h)
+
+        if self.backward:    
+            for i,l in enumerate(layers):
+                h   = misc.CaptureGradOutput(post_process=None) # The gradient information entering the layer
+                #h   = misc.CaptureGradInput(post_process=None) # The gradient information exiting the layer
+                _   = self.model._modules[l].register_backward_hook(h)
+                self.gradient_hooks.append(h)
+    
+    def _forward_bsize_1(self, class_idx, logit, retain_graph):
+        
+        if class_idx is None:
+            score = logit[:, logit.max(1)[-1]].squeeze()
+        else:
+            score = logit[:, class_idx].squeeze()
+
+        if self.backward:
+            self.model.zero_grad()
+            score.backward(retain_graph=retain_graph)
+    
+    def _forward_bsize_N(self):
+        
+        pass    
+
+    def __call__(self, input, class_idx=None, retain_graph=False, invert=False):
+        """
+        Args:
+            input: input image with shape of (1, 3, H, W)
+            class_idx (int): class index for calculating GradCAM.
+                    If not specified, the class index that makes the highest model prediction score will be used.
+        Return:
+            mask: saliency map of the same spatial dimension with input
+            logit: model output
+        """
+
+        # Don't compute grads if we do not need them
+        with torch.set_grad_enabled(self.backward):
+
+            b, c, h, w      = input.size()
+    
+            self.model.eval()
+    
+            logit           = self.model(input)
+            
+            if b == 1:
+                self._forward_bsize_1(class_idx, logit, retain_graph)
+            else:
+                self._forward_bsize_N(class_idx, logit, retain_graph)
+            
+            saliency_maps = []
+            
+            for i,l in enumerate(self.layers):
+            
+                if self.backward:
+                    gradients           = self.gradient_hooks[i].data
+                    b, k, u, v          = gradients.size()
+                    
+                if self.forward:
+                    activations         = self.activation_hooks[i].data
+                    b, k, u, v          = activations.size()
+                
+                if invert:
+                    gradients *= -1
+                
+                if self.method=='V0':
+                    # Without Gradients, original SMOE Scale
+                    weights             = torch.ones_like(activations)
+                elif self.method=='V1':
+                    # V1 SIGN over layer means
+                    alpha               = gradients.view(b, k, -1).mean(2)
+                    weights             = alpha.view(b, k, 1, 1)
+                    weights             = torch.sign(weights) 
+                elif self.method=='V2':
+                    # V2 Original method
+                    alpha               = gradients.view(b, k, -1).mean(2)
+                    weights             = alpha.view(b, k, 1, 1)
+                elif self.method=='V3':
+                    # V3 SIGN over all values
+                    weights             = torch.sign(gradients) 
+                elif self.method=='V4':
+                    # V4 SIGN over all values
+                    weights             = gradients # Just take the raw gradients
+                elif self.method=='V5':
+                    # V5 Gradients Only
+                    weights             = gradients # Just take the raw gradients
+                    activations         = torch.ones_like(gradients)
+                elif self.method=='V6':
+                    # Conditional entropy between postive and negative gradients 
+                    alpha               = gradients.view(b, k, -1).mean(2)
+                    weights_a           = F.relu(activations*alpha.view(b, k, 1, 1))    
+                    weights_b           = F.relu(activations*alpha.view(b, k, 1, 1) * -1)
+                    weights_a           = self.getSmap(weights_a)
+                    weights_b           = self.getSmap(weights_b)
+                    saliency_map        = self.getNorm(weights_a * torch.log(weights_a/weights_b))
+                    
+                    saliency_maps.append(saliency_map)
+                    
+                    continue
+                    
+                saliency_map        = weights*activations
+                saliency_map        = F.relu(saliency_map)
+                saliency_map        = self.getNorm(self.getSmap(saliency_map)).view(b, u, v)
+    
+                saliency_maps.append(saliency_map)
+            
+        return saliency_maps, logit  
+
 
 # *******************************************************************************************************************                   
 # ******************************************************************************************************************* 

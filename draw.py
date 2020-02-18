@@ -126,19 +126,19 @@ class HeatMap(_Draw):
         assert(input_patches.shape[1] == self.width)
         assert(input_patches.shape[2] == self.chans)
         
-        patches         = self._range_normalize(input_patches.astype(np.float32)) * self.weights
+        patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
         # Set intensity to be the weighted average
-        V               = np.sum(patches, 2) / self.sum_weights
-        V               /= V.max()    
+        V                   = np.sum(patches, 2) / self.sum_weights
+        V                   /= V.max()    
         
         # Use the standard integral method for saturation, but give it a boost.
         if self.frac != 1.0:
-            S               = 1.0 - (np.sum(patches,2)/(self.fc*np.amax(patches,2)) - self.frac)*(1.0/(1.0 - self.frac))
+            S                   = 1.0 - (np.sum(patches,2)/(self.fc*np.amax(patches,2)) - self.frac)*(1.0/(1.0 - self.frac))
         else:
-            S               = V
+            S                   = V
             
-        S               = pow(S,self.Cexp)
+        S                   = pow(S,self.Cexp)
         
         # Set H,S and V in that order. 
         self.HSV_img[:,:,0] = (1.0 - V) * 240.0 
@@ -183,12 +183,12 @@ class LOVI(_Draw):
         assert(input_patches.shape[1] == self.width)
         assert(input_patches.shape[2] == self.chans)
         
-        patches         = self._range_normalize(input_patches.astype(np.float32)) * self.weights
+        patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
         # Compute position
-        pos             = patches * self.pos_img
+        pos                 = patches * self.pos_img
         # Get Mean
-        m               = np.sum(pos,2) / np.sum(patches,2)
+        m                   = np.sum(pos,2) / np.sum(patches,2)
 
         # Set H,S and V in that order.        
         self.HSV_img[:,:,0] = m*300

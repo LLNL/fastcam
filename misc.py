@@ -46,11 +46,14 @@ See also: https://arxiv.org/abs/1911.11293
 '''
 
 import torch
+import torch.nn.functional as F
 import cv2
 import numpy as np
 import maps
 from torchvision import models, transforms
 from statistics import stdev # Built-in
+
+from gradcam import GradCAM
 
 # ******************************************************************************************************************* 
 def from_gpu(data):
@@ -86,15 +89,8 @@ class CaptureLayerData(object):
         else:
             self.device         = None
         
-        assert(callable(self.post_process))
- 
-    def get(self, idx=0):
-
-        if self.data is not None and idx <= len(self.data):
-            return self.data[idx]
-        else:
-            return None
-            
+        assert(callable(self.post_process) or self.post_process is None)
+             
 # *******************************************************************************************************************            
 class CaptureLayerOutput(CaptureLayerData):
     
@@ -106,21 +102,66 @@ class CaptureLayerOutput(CaptureLayerData):
         
         if self.device is None or self.device == o.device:
             
-            self.data = self.post_process(o.data) 
-            
+            if self.post_process is None:
+                self.data = o.data
+            else:
+                self.data = self.post_process(o.data) 
+
 # *******************************************************************************************************************            
-class CaptureLayerInput(CaptureLayerData):
+class CaptureGradOutput(CaptureLayerData):
     
     def __init__(self, device=None, post_process=detach):
         
-        super(CaptureLayerInput, self).__init__(device, post_process)     
+        super(CaptureGradOutput, self).__init__(device, post_process)      
         
     def __call__(self, m, i, o):
         
         if self.device is None or self.device == o.device:
             
-            self.data = [n.data for n in i]
+            if self.post_process is None:
+                self.data = o[0]
+            else:
+                self.data = self.post_process(o[0]) 
+            
+# *******************************************************************************************************************            
+class CaptureLayerInput(CaptureLayerData):
     
+    def __init__(self, device=None, array_item=None):
+        
+        assert(isinstance(array_item, int) or array_item is None)
+        
+        if isinstance(array_item, int):
+            assert(array_item >= 0) 
+        
+        self.array_item = array_item
+        
+        super(CaptureLayerInput, self).__init__(device, post_process=None)     
+        
+    def __call__(self, m, i, o):
+        
+        if self.device is None or self.device == o.device:
+            
+            if self.array_item is None:
+                self.data = [n.data for n in i]
+            else:
+                self.data = i.data[self.array_item]
+                
+# *******************************************************************************************************************            
+class CaptureGradInput(CaptureLayerData):
+    
+    def __init__(self, device=None, post_process=detach):
+        
+        super(CaptureGradInput, self).__init__(device, post_process)      
+        
+    def __call__(self, m, i, o):
+        
+        if self.device is None or self.device == i.device:
+            
+            if self.post_process is None:
+                self.data = i[0]
+            else:
+                self.data = self.post_process(i[0])     
+                
 # *******************************************************************************************************************
 # *******************************************************************************************************************             
 def LoadImageToTensor(file_name, device, norm=True):
@@ -212,6 +253,19 @@ def TensorToNumpyImages(tens):
         np_im    = np_im.transpose(1, 2, 0)
     
     return np_im
+
+# *******************************************************************************************************************             
+def NumpyToTensorImages(np_im, device='cpu'):
+    
+    assert(isinstance(np_im, np.ndarray))
+    assert(len(np_im.shape) == 3 or len(np_im.shape) == 4)
+    
+    toTensor    = transforms.ToTensor()
+    
+    pt_im       = toTensor(np_im)
+    pt_im       = pt_im.to(device)                                                      # Send to the device
+    
+    return pt_im   
 
 # *******************************************************************************************************************             
 def AlphaBlend(im1, im2, alpha=0.75):
@@ -372,3 +426,174 @@ class SmoothGrad:
         
         return out_csmap, out_smaps, ret_image
     
+# ******************************************************************************************************************* 
+# *******************************************************************************************************************     
+class ScoreMap(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, scores):
+        
+        ctx.save_for_backward(scores)
+        return torch.tensor(1)
+    
+    @staticmethod
+    def backward(ctx, grad):
+                
+        saved        = ctx.saved_tensors
+        g_scores     = torch.ones_like(saved[0])
+        
+        return g_scores
+    
+# *******************************************************************************************************************     
+class GradCAM_SMOE(GradCAM):
+    """Calculate SMOE Scale GradCAM salinecy map.
+
+    A simple example:
+
+        # initialize a model, model_dict and gradcampp
+        resnet = torchvision.models.resnet101(pretrained=True)
+        resnet.eval()
+        gradcampp = GradCAMpp.from_config(model_type='resnet', arch=resnet, layer_name='layer4')
+
+        # get an image and normalize with mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+        img = load_img()
+        normed_img = normalizer(img)
+
+        # get a GradCAM saliency map on the class index 10.
+        mask, logit = gradcampp(normed_img, class_idx=10)
+
+        # make heatmap from mask and synthesize saliency map using heatmap and img
+        heatmap, cam_result = visualize_cam(mask, img)
+    """
+
+    def forward(self, input, class_idx=None, retain_graph=False, method='V1'):
+        """
+        Args:
+            input: input image with shape of (1, 3, H, W)
+            class_idx (int): class index for calculating GradCAM.
+                    If not specified, the class index that makes the highest model prediction score will be used.
+        Return:
+            mask: saliency map of the same spatial dimension with input
+            logit: model output
+        """
+        getSmap     = maps.SMOEScaleMap()
+        getNorm     = maps.Normalize2D()
+        
+        b, c, h, w  = input.size()
+
+        logit = self.model_arch(input)
+        
+        if class_idx is None:
+            score = logit[:, logit.max(1)[-1]].squeeze()
+        else:
+            score = logit[:, class_idx].squeeze()
+
+        self.model_arch.zero_grad()
+        
+        score.backward(retain_graph=retain_graph)
+        
+        gradients           = self.gradients['value']
+        activations         = self.activations['value']
+        b, k, u, v          = gradients.size()
+        
+        
+        if method=='V1':
+            # V1 SIGN over layer means
+            alpha               = gradients.view(b, k, -1).mean(2)
+            weights             = alpha.view(b, k, 1, 1)
+            weights             = torch.sign(weights) 
+        elif method=='V2':
+            # V2 SIGN over all values
+            weights             = torch.sign(gradients) 
+        elif method=='V3':
+            # V3 SIGN over all values
+            weights             = gradients # Just take the raw gradients
+        elif method=='V4':
+            # V4 Original method
+            alpha               = gradients.view(b, k, -1).mean(2)
+            weights             = alpha.view(b, k, 1, 1)
+            
+        saliency_map        = weights*activations
+        #saliency_map        = activations # Should look exactly like SMOE-Scale if we use this line
+        saliency_map        = F.relu(saliency_map)
+        saliency_map        = getNorm(getSmap(saliency_map)).view(b, 1, u, v)
+
+        #saliency_map = (weights*activations).sum(1, keepdim=True)
+        #saliency_map = F.relu(saliency_map)
+        
+        #saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
+        #saliency_map_min, saliency_map_max = saliency_map.min(), saliency_map.max()
+        #saliency_map        = (saliency_map-saliency_map_min).div(saliency_map_max-saliency_map_min).data
+
+        return saliency_map, logit    
+    
+# *******************************************************************************************************************     
+class GradCAMpp_SMOE(GradCAM):
+    """Calculate SMOE Scale GradCAM++ salinecy map.
+
+    A simple example:
+
+        # initialize a model, model_dict and gradcampp
+        resnet = torchvision.models.resnet101(pretrained=True)
+        resnet.eval()
+        gradcampp = GradCAMpp.from_config(model_type='resnet', arch=resnet, layer_name='layer4')
+
+        # get an image and normalize with mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+        img = load_img()
+        normed_img = normalizer(img)
+
+        # get a GradCAM saliency map on the class index 10.
+        mask, logit = gradcampp(normed_img, class_idx=10)
+
+        # make heatmap from mask and synthesize saliency map using heatmap and img
+        heatmap, cam_result = visualize_cam(mask, img)
+    """
+
+    def forward(self, input, class_idx=None, retain_graph=False):
+        """
+        Args:
+            input: input image with shape of (1, 3, H, W)
+            class_idx (int): class index for calculating GradCAM.
+                    If not specified, the class index that makes the highest model prediction score will be used.
+        Return:
+            mask: saliency map of the same spatial dimension with input
+            logit: model output
+        """
+        getSmap     = maps.SMOEScaleMap()
+        getNorm     = maps.Normalize2D()
+        
+        b, c, h, w = input.size()
+
+        logit = self.model_arch(input)
+        if class_idx is None:
+            score = logit[:, logit.max(1)[-1]].squeeze()
+        else:
+            score = logit[:, class_idx].squeeze()
+
+        self.model_arch.zero_grad()
+        score.backward(retain_graph=retain_graph)
+        gradients           = self.gradients['value'] # dS/dA
+        activations         = self.activations['value'] # A
+        b, k, u, v          = gradients.size()
+
+        alpha_num           = gradients.pow(2)
+        alpha_denom         = gradients.pow(2).mul(2) + \
+                                activations.mul(gradients.pow(3)).view(b, k, u*v).sum(-1, keepdim=True).view(b, k, 1, 1)
+        alpha_denom         = torch.where(alpha_denom != 0.0, alpha_denom, torch.ones_like(alpha_denom))
+
+        alpha               = alpha_num.div(alpha_denom+1e-7)
+        positive_gradients  = F.relu(score.exp()*gradients) # ReLU(dY/dA) == ReLU(exp(S)*dS/dA))
+        weights             = (alpha*positive_gradients).view(b, k, u*v).sum(-1).view(b, k, 1, 1)
+
+        saliency_map        = weights*activations
+        saliency_map        = F.relu(saliency_map)
+        saliency_map        = getNorm(getSmap(saliency_map)).view(b, 1, u, v)
+
+        #saliency_map = (weights*activations).sum(1, keepdim=True)
+        #saliency_map = F.relu(saliency_map)
+        
+        saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
+        saliency_map_min, saliency_map_max = saliency_map.min(), saliency_map.max()
+        saliency_map        = (saliency_map-saliency_map_min).div(saliency_map_max-saliency_map_min).data
+
+        return saliency_map, logit
