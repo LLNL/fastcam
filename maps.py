@@ -233,26 +233,35 @@ class FastCAM(object):
     
     This code is derived from pytorch-gradcam
     """
-    def __init__(self, layers, model, method='V1', maps_method=maps.SMOEScaleMap):
+    def __init__(self, layers, model, method='V1', maps_method=maps.SMOEScaleMap, 
+                 use_gpp=False, grad_pooling=None, pos_neg_map=False):
         
         assert(isinstance(layers, list))
-        assert(isinstance(method,str))
+        assert(isinstance(method, str))
+        assert(isinstance(grad_pooling, str) or grad_pooling is None)
         assert(callable(maps_method))
         
-        self.getSmap    = maps_method()
-        self.getNorm    = maps.Normalize2D()
-        self.layers     = layers
-        self.model      = model
-        self.method     = method
-        self.forward    = True
-        self.backward   = True
+        self.getSmap        = maps_method()
+        self.layers         = layers
+        self.model          = model
+        self.method         = method
+        self.use_gpp        = use_gpp
+        self.grad_pooling   = grad_pooling
+        self.pos_neg_map    = pos_neg_map
+        self.forward        = True
+        self.backward       = True
+        
+        if not pos_neg_map:
+            self.getNorm        = maps.Normalize2D()
+        else:
+            self.getNorm        = maps.Normalize2D()#const_mean=0.0)
         
         self.activation_hooks   = []
         self.gradient_hooks     = []
         
-        if self.method=='V0':
+        if self.method == 'V0':
             self.backward = False
-        if self.method=='V5':
+        if self.method == 'V5':
             self.forward = False
             
         if self.forward:
@@ -316,35 +325,78 @@ class FastCAM(object):
                     gradients           = self.gradient_hooks[i].data
                     b, k, u, v          = gradients.size()
                     
+                    if self.grad_pooling == 'avg':
+                        #gradients           = F.avg_pool2d(gradients, kernel_size=3, stride=3, padding=0, ceil_mode=True)
+                        gradients           = F.avg_pool2d(gradients, kernel_size=2, stride=2, padding=0, ceil_mode=True)
+                        gradients           = nn.functional.interpolate(gradients, size=[u,v], mode='nearest') 
+                    elif self.grad_pooling == 'max':
+                        # this helps make gradients more selective for larger things when using V1, V2 or V3 
+                        # Should also remove spurioous negative gradients
+                        #gradients           = F.max_pool2d(gradients, kernel_size=3, stride=3, padding=0, ceil_mode=True)
+                        gradients           = F.max_pool2d(gradients, kernel_size=2, stride=2, padding=0, ceil_mode=True)
+                        gradients           = nn.functional.interpolate(gradients, size=[u,v], mode='nearest') 
+                        
+                    # Make sure gradients are bounded on -1 to 1
+                    #gradients           = torch.tanh(gradients)
+                    
                 if self.forward:
                     activations         = self.activation_hooks[i].data
                     b, k, u, v          = activations.size()
+                    
+                    #activations         = torch.tanh(activations)
+                    # Just to be sure, we may not be following a ReLU layer
+                    activations         = F.relu(activations)
                 
                 if invert:
                     gradients *= -1
                 
+                # Do GradCAM Plus Plus preprocess on gradients?
+                # This biases for layers with less activation
+                # Only makes a noticable difference for V2 and V4
+                if self.use_gpp and self.backward and self.forward:
+                    alpha_num           = gradients.pow(2)
+                    alpha_denom         = gradients.pow(2).mul(2) + \
+                                            activations.mul(gradients.pow(3)).view(b, k, u*v).sum(-1, keepdim=True).view(b, k, 1, 1)
+                    # NOT NEEDED: since we already add 1e-7
+                    #alpha_denom         = torch.where(alpha_denom != 0.0, alpha_denom, torch.ones_like(alpha_denom))
+            
+                    alpha               = alpha_num.div(alpha_denom+1e-7)
+                    # OPTIONAL: Adding in the score is optional since we normalize the results any way
+                    #positive_gradients  = F.relu(self.score.exp()*gradients) # ReLU(dY/dA) == ReLU(exp(S)*dS/dA))
+                    positive_gradients  = F.relu(gradients)
+                    gradients           = alpha*positive_gradients
+                
                 if self.method=='V0':
                     # Without Gradients, original SMOE Scale
-                    weights             = torch.ones_like(activations)
+                    saliency_map        = activations
+                    
                 elif self.method=='V1':
                     # V1 SIGN over layer means
                     alpha               = gradients.view(b, k, -1).mean(2)
                     weights             = alpha.view(b, k, 1, 1)
                     weights             = torch.sign(weights) 
+                    saliency_map        = weights*activations
+                    
                 elif self.method=='V2':
                     # V2 Original method
                     alpha               = gradients.view(b, k, -1).mean(2)
                     weights             = alpha.view(b, k, 1, 1)
+                    saliency_map        = weights*activations
+                    
                 elif self.method=='V3':
                     # V3 SIGN over all values
                     weights             = torch.sign(gradients) 
+                    saliency_map        = weights*activations
+                    
                 elif self.method=='V4':
-                    # V4 SIGN over all values
-                    weights             = gradients # Just take the raw gradients
+                    # V4 multiply over all values
+                    saliency_map        = gradients*activations
+                    
                 elif self.method=='V5':
                     # V5 Gradients Only
-                    weights             = gradients # Just take the raw gradients
-                    activations         = torch.ones_like(gradients)
+                    saliency_map        = gradients
+
+                    
                 elif self.method=='V6':
                     # Conditional entropy between postive and negative gradients 
                     alpha               = gradients.view(b, k, -1).mean(2)
@@ -357,11 +409,21 @@ class FastCAM(object):
                     saliency_maps.append(saliency_map)
                     
                     continue
-                    
-                saliency_map        = weights*activations
-                saliency_map        = F.relu(saliency_map)
-                saliency_map        = self.getNorm(self.getSmap(saliency_map)).view(b, u, v)
+                
+                if not self.pos_neg_map:
+                    # Only take the positive gradient values
+                    saliency_map        = F.relu(saliency_map)
+                    saliency_map        = self.getNorm(self.getSmap(saliency_map)).view(b, u, v)
+                else:
+                    smap1               = F.relu(saliency_map)
+                    smap2               = F.relu(saliency_map * -1)
     
+                    smap1               = self.getSmap(smap1)
+                    smap2               = self.getSmap(smap2) * -1
+                    
+                    saliency_map        = smap1 + smap2
+                    saliency_map        = self.getNorm(saliency_map).view(b, u, v)
+                    
                 saliency_maps.append(saliency_map)
             
         return saliency_maps, logit  
@@ -379,9 +441,15 @@ class Normalize2D(nn.Module):
         Output will range from 0 to 1
     '''
     
-    def __init__(self):
+    def __init__(self, const_mean=None, const_std=None):
         
         super(Normalize2D, self).__init__()   
+        
+        assert(isinstance(const_mean,float)    or const_mean is None)
+        assert(isinstance(const_std,float)     or const_std is None)
+        
+        self.const_mean = const_mean
+        self.const_std  = const_std
         
     def forward(self, x):
         r'''
@@ -396,10 +464,17 @@ class Normalize2D(nn.Module):
 
         x       = x.reshape(s0,s1*s2) 
         
-        m       = x.mean(dim=1)
-        m       = m.reshape(m.size()[0],1)
-        s       = x.std(dim=1)
-        s       = s.reshape(s.size()[0],1)
+        if self.const_mean is None:
+            m       = x.mean(dim=1)
+            m       = m.reshape(m.size()[0],1)
+        else:
+            m       = self.const_mean
+            
+        if self.const_std is None:
+            s       = x.std(dim=1)
+            s       = s.reshape(s.size()[0],1)
+        else:
+            s       = seld.const_std
         
         r'''
             The normal cumulative distribution function is used to squash the values from 0 to 1
@@ -423,7 +498,7 @@ class CombineSaliencyMaps(nn.Module):
         weights is an optional list of weights for each layer e.g. [1, 2, 3, 4, 5]
     '''
     
-    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear', magnitude=False):
+    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear', magnitude=False, do_relu=False):
         
         super(CombineSaliencyMaps, self).__init__()
         
@@ -458,6 +533,7 @@ class CombineSaliencyMaps(nn.Module):
         self.output_size    = output_size
         self.resize_mode    = resize_mode
         self.magnitude      = magnitude
+        self.do_relu        = do_relu
         
     def forward(self, smaps):
         
@@ -500,6 +576,10 @@ class CombineSaliencyMaps(nn.Module):
         
         ww  = torch.stack(ww,dim=1)
         ww  = ww.reshape(bn, self.map_num, self.output_size[0], self.output_size[1])
+        
+        if self.do_relu:
+            cm = F.relu(cm)
+            ww = F.relu(ww)
         
         return cm, ww 
         
