@@ -6,7 +6,12 @@ the Guided Backprop component typically used alongside GradCAM with our SMOE Sca
 Additionally, the expected accuracy of the saliency map is increased slightly. Thus, **FastCAM is three orders of magnitude faster and a little bit more accurate than GradCAM+Guided Backprop with SmoothGrad.** 
 
 ![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/fast-cam.ILSVRC2012_val_00049934.jpg)
-                         
+
+## Performance
+FastCAM is not only fast, but it is more accurate than most methods. The following is a list or ROAR/KAR scores for different methods along with notes about performance. In gray is the total ROAR/KAR score. Higher is better.  
+
+![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/roar_kar.png)        
+                 
 ## Installation
 
 The FastCAM package runs on **Python 3.x**. The package should run on **Python 2.x**. However, since 
