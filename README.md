@@ -6,6 +6,30 @@ the Guided Backprop component typically used alongside GradCAM with our SMOE Sca
 Additionally, the expected accuracy of the saliency map is increased slightly. Thus, **FastCAM is three orders of magnitude faster and a little bit more accurate than GradCAM+Guided Backprop with SmoothGrad.** 
 
 ![Example output images](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/fast-cam.ILSVRC2012_val_00049934.jpg)
+ 
+## Performance
+FastCAM is not only fast, but it is more accurate than most methods. The following is a list or ROAR/KAR scores for different methods along with notes about performance:
+
+
+
+| Method | KAR |	 ROAR |	SUM | Speed | Resolution |
+| --- | --- | --- | --- | --- |
+| Integrated Grad *Sundararajan et al.*  	|	3.62|	-3.58|	0.03 | Slow | Fine|
+| Gradient *Simonyan et al.* 			|	3.57|	-3.54|	0.04 | Medium | Fine|
+| Guided Backprop *Springenberg et al.*  	|	3.60|	-3.57|	0.04 | Medium | Fine|
+| GradCAM++ *Chattopadhyay et al.* 		| 	3.64|	-2.27|	1.37 | Fast | Coarse|
+| Trunc Normal Ent + Layer Weights [1,1,1,1,1]|	3.61|	-2.47|	1.14| Fast| Fine|
+| SMOE Scale + Layer Weights [1,1,1,1,1]		|	3.62|	-2.46|	1.15| Fast| Fine|
+| SMOE Scale + Layer Weights [1,2,3,4,5]		|	3.62|	-2.34|	1.28| Fast| Fine|
+| Normal Std + Prior Layer Weights			|	3.61|	-2.32|	1.29| Fast| Fine|
+| Trunc Normal Ent + Prior Layer Weights		|	3.61|	-2.31|	1.30| Fast| Fine|
+| SMOE Scale + Prior Layer Weights			|	3.61|	-2.31|	1.30| Fast| Fine|
+| Integrated Grad *-w-* SmoothGrad Sq. 	|	3.56|	-2.68|	0.88| Slow| Fine|
+| Guided Backprop *-w-* SmoothGrad Sq. 	|	3.49|	-2.33|	1.16| Slow| Fine|
+| Gradient *-w-* SmoothGrad Sq. 			|	3.52|	-2.12|	1.41| Slow| Fine|
+| SMOE Scale + Prior Wts. *-w-* GradCAM++		| 	3.66|	-2.22| 	1.44| Fast| Fine|
+
+ 
                          
 ## Installation
 
