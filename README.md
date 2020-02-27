@@ -9,11 +9,11 @@ Additionally, the expected accuracy of the saliency map is increased slightly. T
 
 ## Performance
 
-FastCAM is not only fast, but it is more accurate than most methods. The following is a list or [ROAR/KAR](https://arxiv.org/abs/1806.10758) scores for different methods along with notes about performance. In gray is the total ROAR/KAR score. Higher is better. The last line is the score for the combined map you see here. 
+FastCAM is not only fast, but it is more accurate than most methods. The following is a list or [ROAR/KAR](https://arxiv.org/abs/1806.10758) ImageNet scores for different methods along with notes about performance. In gray is the total ROAR/KAR score. Higher is better. The last line is the score for the combined map you see here. 
 
 ![The Scores](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/roar_kar.png)     
 
-## How does it work?
+## How Does it Work?
 
 ![What makes it tick](https://raw.githubusercontent.com/LLNL/fastcam/master/mdimg/ResNet_w_Salmaps_2.jpg)   
 
