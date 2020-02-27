@@ -284,9 +284,6 @@ class FastCAM(object):
         else:
             score = logit[:, class_idx].squeeze()
 
-
-        print("class {}".format(logit.max(1)[-1]))
-
         if self.backward:
             self.model.zero_grad()
             score.backward(retain_graph=retain_graph)
@@ -294,25 +291,6 @@ class FastCAM(object):
     def _forward_bsize_N(self):
         
         pass    
-    
-    def _magnitude_pool2d(self, x, kernel_size=2, stride=2, padding=0, pos_max=False):
-        # pick the max magnitude gradient in the pool, the one with the highest absolute value
-        
-        b, k, u, v          = x.size()
-        
-        p1  = F.max_pool2d(x,    kernel_size=kernel_size, stride=stride, padding=padding, ceil_mode=True)
-        p2  = F.max_pool2d(-1*x, kernel_size=kernel_size, stride=stride, padding=padding, ceil_mode=True) * -1
-        
-        d   = p1 + p2
-        
-        if pos_max:
-            m   = torch.where(d >= 0.0, p1, torch.zeros_like(d))
-        else:
-            m   = torch.where(d >= 0.0, p1, p2)
-        
-        m   = nn.functional.interpolate(m, size=[u,v], mode='nearest')        
-        
-        return m 
 
     def __call__(self, input, class_idx=None, retain_graph=False, invert=False):
         """
@@ -348,18 +326,16 @@ class FastCAM(object):
                     b, k, u, v          = gradients.size()
                     
                     if self.grad_pooling == 'avg':
+                        #gradients           = F.avg_pool2d(gradients, kernel_size=3, stride=3, padding=0, ceil_mode=True)
                         gradients           = F.avg_pool2d(gradients, kernel_size=2, stride=2, padding=0, ceil_mode=True)
                         gradients           = nn.functional.interpolate(gradients, size=[u,v], mode='nearest') 
                     elif self.grad_pooling == 'max':
                         # this helps make gradients more selective for larger things when using V1, V2 or V3 
                         # Should also remove spurioous negative gradients
+                        #gradients           = F.max_pool2d(gradients, kernel_size=3, stride=3, padding=0, ceil_mode=True)
                         gradients           = F.max_pool2d(gradients, kernel_size=2, stride=2, padding=0, ceil_mode=True)
                         gradients           = nn.functional.interpolate(gradients, size=[u,v], mode='nearest') 
-                    elif self.grad_pooling == 'mag':
-                        gradients           = self._magnitude_pool2d(gradients, kernel_size=2, stride=2, padding=0)
-                     
-                    if invert:
-                        gradients *= -1   
+                        
                     # Make sure gradients are bounded on -1 to 1
                     #gradients           = torch.tanh(gradients)
                     
@@ -371,7 +347,8 @@ class FastCAM(object):
                     # Just to be sure, we may not be following a ReLU layer
                     activations         = F.relu(activations)
                 
-
+                if invert:
+                    gradients *= -1
                 
                 # Do GradCAM Plus Plus preprocess on gradients?
                 # This biases for layers with less activation
@@ -422,7 +399,6 @@ class FastCAM(object):
                     
                 elif self.method=='V6':
                     # Conditional entropy between postive and negative gradients 
-                    # does not work well
                     alpha               = gradients.view(b, k, -1).mean(2)
                     weights_a           = F.relu(activations*alpha.view(b, k, 1, 1))    
                     weights_b           = F.relu(activations*alpha.view(b, k, 1, 1) * -1)
@@ -439,17 +415,13 @@ class FastCAM(object):
                     saliency_map        = F.relu(saliency_map)
                     saliency_map        = self.getNorm(self.getSmap(saliency_map)).view(b, u, v)
                 else:
-                    # Does not work well
                     smap1               = F.relu(saliency_map)
                     smap2               = F.relu(saliency_map * -1)
     
-                    smap1               = self.getSmap(smap1) + 0.000001
-                    smap2               = self.getSmap(smap2) + 0.000001
+                    smap1               = self.getSmap(smap1)
+                    smap2               = self.getSmap(smap2) * -1
                     
-                    saliency_map        = smap2
-                    #saliency_map        = smap1 - smap2
-                    #saliency_map        = smap1/smap2
-                    #saliency_map        = smap1 * torch.log(smap1/smap2)
+                    saliency_map        = smap1 + smap2
                     saliency_map        = self.getNorm(saliency_map).view(b, u, v)
                     
                 saliency_maps.append(saliency_map)
