@@ -118,6 +118,8 @@ class CaptureGradOutput(CaptureLayerData):
         
         if self.device is None or self.device == o.device:
             
+            # o seems to usualy be size 1
+            
             if self.post_process is None:
                 self.data = o[0]
             else:
@@ -141,6 +143,8 @@ class CaptureLayerInput(CaptureLayerData):
         
         if self.device is None or self.device == o.device:
             
+            
+            
             if self.array_item is None:
                 self.data = [n.data for n in i]
             else:
@@ -156,6 +160,8 @@ class CaptureGradInput(CaptureLayerData):
     def __call__(self, m, i, o):
         
         if self.device is None or self.device == i.device:
+            
+             # i seems to usualy be size 1
             
             if self.post_process is None:
                 self.data = i[0]
