@@ -52,6 +52,7 @@ import numpy as np
 import maps
 from torchvision import models, transforms
 from statistics import stdev # Built-in
+from matplotlib import pyplot as plt
 
 from gradcam import GradCAM
 
@@ -366,7 +367,30 @@ class DeNormalize:
         tens    = tens.reshape(sz[0],sz[1],sz[2],sz[3])
         
         return tens
-        
+    
+# *******************************************************************************************************************
+def show_hist(tens,file_name=None):
+    '''
+    Create histogram of pixel values and display.
+    '''
+    
+    tens = RangeNormalize(tens) * 256.0
+    
+    img  = tens.cpu().detach().numpy()
+    
+    hist,bins = np.histogram(img.flatten(),256,[0,256])
+    cdf = hist.cumsum()
+    cdf_normalized = cdf * float(hist.max()) / cdf.max()
+    plt.plot(cdf_normalized, color = 'b')
+    plt.hist(img.flatten(),256,[0,256], color = 'r')
+    plt.xlim([0,256])
+    plt.legend(('cdf','histogram'), loc = 'upper left')
+    
+    if file_name is not None:
+        plt.savefig(file_name)
+    
+    plt.show()        
+    
 # *******************************************************************************************************************             
 class SmoothGrad:
     

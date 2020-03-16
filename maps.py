@@ -305,6 +305,133 @@ class GammaNorm2D(nn.Module):
         
         super(GammaNorm2D, self).__init__()   
         
+    def _gamma(self,z):
+    
+        # Chebyshev polynomials
+        p = torch.tensor([676.5203681218851,
+                          -1259.1392167224028,
+                          771.32342877765313,
+                          -176.61502916214059,
+                          12.507343278686905,
+                          -0.13857109526572012,
+                          9.9843695780195716e-6,
+                          1.5056327351493116e-7
+                          ])
+        
+        # Removed to get gamma(z + 1)
+        #z = z - 1.0
+        
+        x = torch.ones_like(z) * 0.99999999999980993
+        
+        for i in range(8):
+            i1  = torch.tensor(i + 1.0)
+            x   = x + p[i] / (z + i1)
+            
+        t = z + 8.0 - 0.5
+        y = math.sqrt(2.0*3.141592653589793) * t.pow(z+0.5) * torch.exp(-t) * x
+        
+        # Added to get gamma(z)
+        y = y / z
+        
+        return y   
+    
+    def _lower_incl_gamma(self,s,x):
+        
+        L = x.pow(s) * self._gamma(s) * torch.exp(-x)
+        
+        R = torch.zeros_like(L)
+        
+        for k in range(8):
+            
+            R += x.pow(k) / self._gamma(s + k + 1)
+            
+        return L * R
+    
+    # UNUSED
+    def _log_gamma(self,x):
+    
+        # We need this line since recursion is not good for x < 1.0
+        # Note that we take -log(x) at the end to remove this because:
+        #
+        #     log_gamma(z) = log_gamma(z + 1) - log(z)
+        #
+        
+        z   = x + 1.0
+        
+        # First three lines give a very good approximation if z < 1.0
+        T1  = z * torch.log(z)
+        T2  = z.clone()
+        T3  = 0.5 * torch.log(z/(2.0*3.141592653589793))
+        
+        T4  = torch.reciprocal(12.0*z)
+        z3  = z.pow(3)
+        T5  = torch.reciprocal(360.0*z3)
+        z5  = z.pow(5)
+        T6  = torch.reciprocal(1260.0*z5)
+        z7  = z.pow(7)
+        T7  = (1.0/30.0)/(8.0*7.0*z7)
+    
+        l   = T1 - T2 - T3 + T4 - T5 + T6 - T7 - torch.log(x)
+        
+        return l 
+    
+    def _trigamma(self,x):
+    
+        # We need this line since recursion is not good for x < 1.0
+        # Note that we take + torch.reciprocal(x.pow(2)) at the end because:
+        #
+        #     trigamma(z) = trigamma(z + 1) + 1/z^2
+        #
+        
+        z   = x + 1.0
+        
+        zz  = z.pow(2)
+        a   = 0.2 - torch.reciprocal(7.0*zz)
+        b   = 1.0 - a/zz 
+        c   = 1.0 + b/(3.0 * z)
+        d   = 1.0 + c/(2.0 * z)
+        e   = d/z 
+        
+        e   = e + torch.reciprocal(x.pow(2))
+     
+        return e
+    
+    def _k_update(self,k,s):
+        
+        nm = torch.log(k) - torch.digamma(k) - s
+        dn = torch.reciprocal(k) - self._trigamma(k)
+        k2 = k - nm/dn
+        
+        return k2
+        
+    def _compute_ml_est(self, x, i=10):
+        
+        # avoid log(0)
+        x  = x + 0.0000001
+        
+        #Calculate s
+        # If x has been normalized, the first number is negative, the second number is positive (larger?)
+        s  = torch.log(torch.mean(x,dim=1)) - torch.mean(torch.log(x),dim=1)
+        
+        # Get estimate of k to within 1.5%
+        #
+        # NOTE: K gets smaller as log variance s increases
+        #
+        s3 = s - 3.0
+        rt = torch.sqrt(s3.pow(2) + 24.0 * s)
+        nm = 3.0 - s + rt
+        dn = 12.0 * s
+        k  = nm / dn + 0.0000001
+
+        # Do i Newton-Raphson steps to get closer than 1.5%
+        # For i=5 gets us within 4 or 5 decimal places
+        for _ in range(i):
+            k =  self._k_update(k,s)
+            
+        th  = torch.reciprocal(k) * torch.mean(x,dim=1)
+        
+        return k, th
+    
     def forward(self, x):
         r'''
             Original shape is something like [64,7,7] i.e. [batch size x height x width]
@@ -318,8 +445,11 @@ class GammaNorm2D(nn.Module):
 
         x       = x.reshape(s0,s1*s2) 
         
-
-                
+        k,th    = self._compute_ml_est(x)
+        
+        # CHECK THIS TO MAKE SURE DIMS ARE CORRECT
+        x       = (1.0/self._gamma(k)) * self._lower_incl_gamma(k, x/th)
+        
         x       = x.reshape(s0,s1,s2)
             
         return x  
