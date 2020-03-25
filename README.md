@@ -48,6 +48,8 @@ When you run the installation, these packages should automatically install for y
 
 This will run our [Jupyter Notebook](https://github.com/LLNL/fastcam/blob/master/demo_fast-cam.ipynb) on your local computer.
 
+**Optionally** if you don't care how it runs and just want to run it, use our [simplified notebook](https://github.com/LLNL/fastcam/blob/master/demo_simple_fast-cam.ipynb).
+
 These are our recommended installation steps:
 
 	git clone git@github.com:LLNL/fastcam.git 
