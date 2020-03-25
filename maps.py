@@ -49,8 +49,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import numpy as np
+import scipy.special
+
 import maps
 import misc
+import math
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):
@@ -293,11 +297,11 @@ class Normalize2D(nn.Module):
 # ******************************************************************************************************************* 
 class GammaNorm2D(nn.Module):
     r'''
-        This will normalize a saliency map to range from 0 to 1 via normal cumulative distribution function. 
+        This will normalize a saliency map to range from 0 to 1 via gamma cumulative distribution function. 
         
         Input and output will be a 3D tensor of size [batch size x height x width]. 
         
-        Input can be any real valued number (supported by hardware)
+        Input can be any positive real valued number (supported by hardware)
         Output will range from 0 to 1
     '''
     
@@ -305,83 +309,109 @@ class GammaNorm2D(nn.Module):
         
         super(GammaNorm2D, self).__init__()   
         
-    def _gamma(self,z):
-    
-        # Chebyshev polynomials
-        p = torch.tensor([676.5203681218851,
-                          -1259.1392167224028,
-                          771.32342877765313,
-                          -176.61502916214059,
-                          12.507343278686905,
-                          -0.13857109526572012,
-                          9.9843695780195716e-6,
-                          1.5056327351493116e-7
-                          ])
+        # Chebyshev polynomials for Gamma Function
+        self.cheb = torch.tensor([676.5203681218851,
+                                  -1259.1392167224028,
+                                  771.32342877765313,
+                                  -176.61502916214059,
+                                  12.507343278686905,
+                                  -0.13857109526572012,
+                                  9.9843695780195716e-6,
+                                  1.5056327351493116e-7
+                                  ])
         
-        # Removed to get gamma(z + 1)
-        #z = z - 1.0
+        self.two_pi = torch.tensor(math.sqrt(2.0*3.141592653589793))
+        
+    def _gamma(self,z):
+        r'''
+            Gamma Function:
+        
+            http://mathworld.wolfram.com/GammaFunction.html
+            
+            https://en.wikipedia.org/wiki/Gamma_function#Weierstrass's_definition
+            
+            https://en.wikipedia.org/wiki/Lanczos_approximation#Simple_implementation
+            
+                gives us gamma(z + 1)
+                Our version makes some slight changes and is more stable. 
+            
+            Notes: 
+            
+            (1) gamma(z) = gamma(z+1)/z
+            (2) The gamma function is essentially a factorial function that supports real numbers
+                so it grows very quickly. If z = 18 the result is 355687428096000.0
+            
+            Input is an array of positive real values. Zero is undefined. 
+            Output is an array of real postive values. 
+        ''' 
         
         x = torch.ones_like(z) * 0.99999999999980993
         
         for i in range(8):
             i1  = torch.tensor(i + 1.0)
-            x   = x + p[i] / (z + i1)
+            x   = x + self.cheb[i] / (z + i1)
             
         t = z + 8.0 - 0.5
-        y = math.sqrt(2.0*3.141592653589793) * t.pow(z+0.5) * torch.exp(-t) * x
+        y = self.two_pi * t.pow(z+0.5) * torch.exp(-t) * x
         
-        # Added to get gamma(z)
         y = y / z
         
         return y   
     
-    def _lower_incl_gamma(self,s,x):
+    def _lower_incl_gamma_raw(self,s,x, iter=8):
         
         L = x.pow(s) * self._gamma(s) * torch.exp(-x)
         
         R = torch.zeros_like(L)
         
-        for k in range(8):
-            
+        # Eight may be enough
+        for k in range(iter):
             R += x.pow(k) / self._gamma(s + k + 1)
-            
+
         return L * R
     
-    # UNUSED
-    def _log_gamma(self,x):
-    
-        # We need this line since recursion is not good for x < 1.0
-        # Note that we take -log(x) at the end to remove this because:
-        #
-        #     log_gamma(z) = log_gamma(z + 1) - log(z)
-        #
+    def _lower_incl_gamma(self,s,x, iter=8):
+        r'''
+            Lower Incomplete Gamma Function:
+            
+            This has been optimized to call _gamma and pow only once
+            The gamma function is very expensive to call over all pixels, as we might do here. 
         
-        z   = x + 1.0
+            See: https://en.wikipedia.org/wiki/Incomplete_gamma_function#Holomorphic_extension
+        '''
+        iter    = iter - 2
         
-        # First three lines give a very good approximation if z < 1.0
-        T1  = z * torch.log(z)
-        T2  = z.clone()
-        T3  = 0.5 * torch.log(z/(2.0*3.141592653589793))
+        gs      = self._gamma(s)
         
-        T4  = torch.reciprocal(12.0*z)
-        z3  = z.pow(3)
-        T5  = torch.reciprocal(360.0*z3)
-        z5  = z.pow(5)
-        T6  = torch.reciprocal(1260.0*z5)
-        z7  = z.pow(7)
-        T7  = (1.0/30.0)/(8.0*7.0*z7)
-    
-        l   = T1 - T2 - T3 + T4 - T5 + T6 - T7 - torch.log(x)
+        L       = x.pow(s) * gs * torch.exp(-x)
         
-        return l 
+        # For the gamma function: f(x + 1) = x * f(x)
+        
+        gs      *= s    # Gamma(s + 1)
+        R       = torch.reciprocal(gs) * torch.ones_like(x)
+        X       = x     # x.pow(1)
+        
+        for k in range(iter):
+            gs      *= s + k + 1    # Gamma(s + k + 2)
+            R       += X / gs 
+            X       = X*x           # x.pow(k+1)
+        
+        gs      *= s + iter + 1     # Gamma(s + iter + 2)
+        R       += X / gs
+        
+        return  L * R
     
     def _trigamma(self,x):
-    
-        # We need this line since recursion is not good for x < 1.0
-        # Note that we take + torch.reciprocal(x.pow(2)) at the end because:
-        #
-        #     trigamma(z) = trigamma(z + 1) + 1/z^2
-        #
+        r''' 
+            Trigamma function:
+            
+            https://en.wikipedia.org/wiki/Trigamma_function
+            
+            We need the first line since recursion is not good for x < 1.0
+            Note that we take + torch.reciprocal(x.pow(2)) at the end because:
+            
+            trigamma(z) = trigamma(z + 1) + 1/z^2
+        '''
         
         z   = x + 1.0
         
@@ -395,7 +425,7 @@ class GammaNorm2D(nn.Module):
         e   = e + torch.reciprocal(x.pow(2))
      
         return e
-    
+
     def _k_update(self,k,s):
         
         nm = torch.log(k) - torch.digamma(k) - s
@@ -403,14 +433,25 @@ class GammaNorm2D(nn.Module):
         k2 = k - nm/dn
         
         return k2
-        
+            
     def _compute_ml_est(self, x, i=10):
+        r'''
+            Compute k and th parameters for the Gamma Probability Distribution. 
+            
+            This uses maximum likelihood estimation per Choi, S. C.; Wette, R. (1969)
+            
+            See: https://en.wikipedia.org/wiki/Gamma_distribution#Parameter_estimation
+            
+            Input is an array of real positive values. Zero is undefined, but we handle it. 
+            Output is a single value (per image) for k and th
+        '''
         
         # avoid log(0)
         x  = x + 0.0000001
         
         #Calculate s
         # If x has been normalized, the first number is negative, the second number is positive (larger?)
+        
         s  = torch.log(torch.mean(x,dim=1)) - torch.mean(torch.log(x),dim=1)
         
         # Get estimate of k to within 1.5%
@@ -427,10 +468,70 @@ class GammaNorm2D(nn.Module):
         # For i=5 gets us within 4 or 5 decimal places
         for _ in range(i):
             k =  self._k_update(k,s)
-            
+        
+        # prevent gamma(k) from being silly big
+        # With k=18, gamma(k) is still 355687428096000.0
+        k   = torch.clamp(k, 0.0000001, 18.0)
+        
         th  = torch.reciprocal(k) * torch.mean(x,dim=1)
         
         return k, th
+    
+    # Experimental
+    def _compute_closed_form(self, x, bias_correct=True):
+        r'''
+            Compute k and th parameters for the Gamma Probability Distribution. 
+            
+            This uses a newer closed form estimator from the papers:
+            
+            Zhi-Sheng Ye & Nan Chen (2017)
+            and 
+            Francisco Louzada, Pedro L. Ramos, Eduardo Ramos. (2019)
+            
+            I consider this experimental for now since Choi and Wette have been around for
+            a while. The ML and Closed form do not give the exact same solution, but are 
+            fairly similar. 
+            
+            This may be faster computationally if we compute k and th over many locations.
+            However, in this case we are computing over whole images. So it may not really 
+            be any faster. 
+            
+            This version may agree more with PyTorch if we need to propagate backwards through
+            the computation. 
+        '''
+        
+        # avoid log(0)
+        x       = x + 0.0000001
+        
+        lx      = torch.log(x)
+        N       = float(x.shape[1])
+        
+        sx      = torch.sum(x,dim=1)
+        sxlx    = torch.sum(x*lx,dim=1)
+        slx     = torch.sum(lx,dim=1)
+        base    = N*sxlx - slx*sx
+        
+        th      = (1/(N*N)) * base
+        k       = (N*sx)    / base
+        
+        if bias_correct:
+            # Bias correction
+            th  = (N/(N - 1.0))*th 
+            
+            # Bias correction
+            pk  = 1.0 + k
+            k   = k - (1.0/N)*(3.0*k - (2.0/3.0)*(k/pk) - (4.0/5.0)*(k/(pk*pk)))
+        
+        # prevent gamma(k) from being silly big
+        # With k=18, gamma(k) is still 355687428096000.0
+        k   = torch.clamp(k,    0.0000001, 18.0)
+        th  = torch.clamp(th,   0.0000001)
+        
+        # Compute th this way so it can adjust with the clamped k
+        #th  = torch.reciprocal(k) * torch.mean(x,dim=1)
+        
+        return k, th
+        
     
     def forward(self, x):
         r'''
@@ -445,11 +546,18 @@ class GammaNorm2D(nn.Module):
 
         x       = x.reshape(s0,s1*s2) 
         
+        # offset from just a little more than 0, keeps k sane
+        x       = x - torch.min(x,dim=1)[0] + 0.0000001
+        
+        #k,th    = self._compute_closed_form(x)
         k,th    = self._compute_ml_est(x)
         
-        # CHECK THIS TO MAKE SURE DIMS ARE CORRECT
+        # Gamma CDF
         x       = (1.0/self._gamma(k)) * self._lower_incl_gamma(k, x/th)
         
+        # There are weird edge cases (e.g. all numbers are equal), prevent NaN
+        x       = torch.where(torch.isfinite(x), x, torch.zeros_like(x))
+                
         x       = x.reshape(s0,s1,s2)
             
         return x  
@@ -596,9 +704,11 @@ class FastCAM(object):
         self.backward       = True
         
         if not pos_neg_map:
-            self.getNorm        = maps.Normalize2D()
+            #self.getNorm        = maps.Normalize2D()
+            self.getNorm        = maps.GammaNorm2D()
         else:
             self.getNorm        = maps.Normalize2D()#const_mean=0.0)
+            #self.getNorm        = maps.GammaNorm2D()
         
         self.activation_hooks   = []
         self.gradient_hooks     = []
