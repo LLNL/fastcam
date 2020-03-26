@@ -78,8 +78,8 @@ class SMOEScaleMap(nn.Module):
                
     def forward(self, x):
 
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) > 2)
+        assert torch.is_tensor(x)
+        assert len(x.size()) > 2
         
         
         r'''
@@ -121,8 +121,8 @@ class StdMap(nn.Module):
         
     def forward(self, x):
         
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) > 2)
+        assert torch.is_tensor(x)
+        assert len(x.size()) > 2
         
         x = torch.std(x,dim=1)
         
@@ -146,8 +146,8 @@ class MeanMap(nn.Module):
         
     def forward(self, x):
         
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) > 2)
+        assert torch.is_tensor(x)
+        assert len(x.size()) > 2
         
         x = torch.mean(x,dim=1)
         
@@ -171,8 +171,8 @@ class MaxMap(nn.Module):
         
     def forward(self, x):
         
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) > 2)
+        assert torch.is_tensor(x)
+        assert len(x.size()) > 2
         
         x = torch.max(x,dim=1)[0]
         
@@ -219,8 +219,8 @@ class TruncNormalEntMap(nn.Module):
     
     def forward(self, x):
         
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) > 2)
+        assert torch.is_tensor(x)
+        assert len(x.size()) > 2
  
         m   = torch.mean(x,   dim=1)
         s   = torch.std(x,    dim=1)
@@ -250,8 +250,8 @@ class Normalize2D(nn.Module):
         
         super(Normalize2D, self).__init__()   
         
-        assert(isinstance(const_mean,float)    or const_mean is None)
-        assert(isinstance(const_std,float)     or const_std is None)
+        assert isinstance(const_mean,float)    or const_mean is None
+        assert isinstance(const_std,float)     or const_std is None
         
         self.const_mean = const_mean
         self.const_std  = const_std
@@ -260,8 +260,8 @@ class Normalize2D(nn.Module):
         r'''
             Original shape is something like [64,7,7] i.e. [batch size x height x width]
         '''
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) == 3) 
+        assert torch.is_tensor(x)
+        assert len(x.size()) == 3
         
         s0      = x.size()[0]
         s1      = x.size()[1]
@@ -466,8 +466,8 @@ class GammaNorm2D(nn.Module):
         r'''
             Original shape is something like [64,7,7] i.e. [batch size x height x width]
         '''
-        assert(torch.is_tensor(x))
-        assert(len(x.size()) == 3) 
+        assert torch.is_tensor(x)
+        assert len(x.size()) == 3
         
         s0      = x.size()[0]
         s1      = x.size()[1]
@@ -508,13 +508,13 @@ class CombineSaliencyMaps(nn.Module):
         
         super(CombineSaliencyMaps, self).__init__()
         
-        assert(isinstance(output_size,list))
-        assert(isinstance(map_num,int))
-        assert(isinstance(resize_mode,str))    
-        assert(len(output_size) == 2)
-        assert(output_size[0] > 0)
-        assert(output_size[1] > 0)
-        assert(map_num > 0)
+        assert isinstance(output_size,list)
+        assert isinstance(map_num,int)
+        assert isinstance(resize_mode,str)    
+        assert len(output_size) == 2
+        assert output_size[0] > 0
+        assert output_size[1] > 0
+        assert map_num > 0
         
         r'''
             We support weights being None, a scaler or a list. 
@@ -524,10 +524,10 @@ class CombineSaliencyMaps(nn.Module):
         if weights is None:
             self.weights = [1.0 for _ in range(map_num)]
         elif len(weights) == 1:
-            assert(weights > 0)
+            assert weights > 0
             self.weights = [weights for _ in range(map_num)]   
         else:
-            assert(len(weights) == map_num)        
+            assert len(weights) == map_num        
             self.weights = weights
         
         self.weight_sum = 0
@@ -548,9 +548,9 @@ class CombineSaliencyMaps(nn.Module):
             Output shape is something like [64,224,244] i.e. [batch size x image_height x image_width]
         '''
 
-        assert(isinstance(smaps,list))
-        assert(len(smaps) == self.map_num)
-        assert(len(smaps[0].size()) == 3)   
+        assert isinstance(smaps,list)
+        assert len(smaps) == self.map_num
+        assert len(smaps[0].size()) == 3
         
         bn  = smaps[0].size()[0]
         cm  = torch.zeros((bn, 1, self.output_size[0], self.output_size[1]), dtype=smaps[0].dtype, device=smaps[0].device)
@@ -561,7 +561,7 @@ class CombineSaliencyMaps(nn.Module):
         '''
         if not self.magnitude:
             for i in range(len(smaps)):
-                assert(torch.is_tensor(smaps[i]))
+                assert torch.is_tensor(smaps[i])
                 wsz = smaps[i].size()
                 w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
                 w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
@@ -569,7 +569,7 @@ class CombineSaliencyMaps(nn.Module):
                 cm  += (w * self.weights[i])
         else:
             for i in range(len(smaps)):
-                assert(torch.is_tensor(smaps[i]))
+                assert torch.is_tensor(smaps[i])
                 wsz = smaps[i].size()
                 w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
                 w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
@@ -595,9 +595,9 @@ class SaliencyMap(object):
     def __init__(self, model, layers, maps_method=maps.SMOEScaleMap, norm_method=maps.Normalize2D,
                  output_size=[224,224], weights=None, resize_mode='bilinear', magnitude=False, do_relu=False):
                 
-        assert(isinstance(layers, list))
-        assert(callable(maps_method))
-        assert(callable(norm_method))
+        assert isinstance(layers, list)
+        assert callable(maps_method)
+        assert callable(norm_method)
         
         self.getSmap            = maps_method()
         self.getNorm            = norm_method()

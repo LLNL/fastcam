@@ -56,9 +56,9 @@ class _Draw(object):
     
     def __init__(self, shape, weights, color):
         
-        assert(isinstance(shape,tuple) or isinstance(shape,list))
-        assert(len(shape) == 3)
-        assert(isinstance(color,int))   # How openCV treats this        
+        assert isinstance(shape,tuple) or isinstance(shape,list)
+        assert len(shape) == 3
+        assert isinstance(color,int)   # How openCV treats this        
         
         self.height  = shape[0]
         self.width   = shape[1]
@@ -66,17 +66,17 @@ class _Draw(object):
         
         self.color   = color 
                 
-        assert(self.height   > 0)
-        assert(self.width    > 0)
-        assert(self.chans    > 0)
+        assert self.height   > 0
+        assert self.width    > 0
+        assert self.chans    > 0
         
         if weights is None:
             self.weights = np.array([1.0 for _ in range(self.chans)]).astype(np.float32)
         elif len(weights) == 1:
-            assert(weights[0] > 0)
+            assert weights[0] > 0
             self.weights = np.array([weights[0] for _ in range(self.chans)]).astype(np.float32)  
         else:
-            assert(len(weights) == self.chans)        
+            assert len(weights) == self.chans      
             self.weights = np.array(weights).astype(np.float32)
                 
         self.fc             = float(self.chans)
@@ -120,11 +120,11 @@ class HeatMap(_Draw):
         r'''
             Input patches should be sized [height x width x channels]. Here channels is each saliency map.
         '''
-        assert(isinstance(input_patches, np.ndarray))
-        assert(len(input_patches.shape) == 3)
-        assert(input_patches.shape[0] == self.height)
-        assert(input_patches.shape[1] == self.width)
-        assert(input_patches.shape[2] == self.chans)
+        assert isinstance(input_patches, np.ndarray)
+        assert len(input_patches.shape) == 3
+        assert input_patches.shape[0] == self.height
+        assert input_patches.shape[1] == self.width
+        assert input_patches.shape[2] == self.chans
         
         patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
@@ -177,11 +177,11 @@ class LOVI(_Draw):
         r'''
             Input patches should be sized [height x width x channels]. Here channels is each saliency map.
         '''
-        assert(isinstance(input_patches, np.ndarray))
-        assert(len(input_patches.shape) == 3)
-        assert(input_patches.shape[0] == self.height)
-        assert(input_patches.shape[1] == self.width)
-        assert(input_patches.shape[2] == self.chans)
+        assert isinstance(input_patches, np.ndarray)
+        assert len(input_patches.shape) == 3
+        assert input_patches.shape[0] == self.height
+        assert input_patches.shape[1] == self.width
+        assert input_patches.shape[2] == self.chans
         
         patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
