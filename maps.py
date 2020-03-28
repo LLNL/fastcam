@@ -236,7 +236,7 @@ class TruncNormalEntMap(nn.Module):
    
 # *******************************************************************************************************************                   
 # ******************************************************************************************************************* 
-class Normalize2D(nn.Module):
+class GaussNorm2D(nn.Module):
     r'''
         This will normalize a saliency map to range from 0 to 1 via normal cumulative distribution function. 
         
@@ -248,7 +248,7 @@ class Normalize2D(nn.Module):
     
     def __init__(self, const_mean=None, const_std=None):
         
-        super(Normalize2D, self).__init__()   
+        super(GaussNorm2D, self).__init__()   
         
         assert isinstance(const_mean,float)    or const_mean is None
         assert isinstance(const_std,float)     or const_std is None
@@ -592,7 +592,7 @@ class CombineSaliencyMaps(nn.Module):
 # *******************************************************************************************************************         
 class SaliencyMap(object):
 
-    def __init__(self, model, layers, maps_method=maps.SMOEScaleMap, norm_method=maps.Normalize2D,
+    def __init__(self, model, layers, maps_method=maps.SMOEScaleMap, norm_method=maps.GaussNorm2D,
                  output_size=[224,224], weights=None, resize_mode='bilinear', magnitude=False, do_relu=False):
                 
         assert isinstance(layers, list)

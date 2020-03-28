@@ -396,7 +396,7 @@ class SmoothGrad:
         self.stdev_spread   = stdev_spread
     
         self.getSmap        = maps.SMOEScaleMap()                                   
-        self.getNorm        = maps.Normalize2D()      
+        self.getNorm        = maps.GaussNorm2D()      
         self.maps_magnitude = maps_magnitude                              
  
     
