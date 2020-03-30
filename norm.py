@@ -292,7 +292,6 @@ class GammaNorm2D(nn.Module):
         # offset from just a little more than 0, keeps k sane
         x       = x - torch.min(x,dim=1)[0] + 0.0000001
         
-        #k,th    = self._compute_closed_form(x)
         k,th    = self._compute_ml_est(x)
         
         # Gamma CDF
@@ -348,10 +347,8 @@ class RangeNorm2D(nn.Module):
             range   = xmax
         
         # prevent divide by zero by setting zero to a small number
-        
         eps_mat = torch.zeros_like(range) + self.eps
         range   = torch.where(range > self.eps, range, eps_mat)
-        #range   = range + torch.tensor(torch.eq(range, zero), dtype=range.dtype, device=range.device) * 
         
         x       = nval / range
         
