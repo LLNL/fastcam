@@ -55,6 +55,7 @@ from statistics import stdev # Built-in
 from matplotlib import pyplot as plt
 
 from gradcam import GradCAM
+from gradcam.utils import visualize_cam
 
 # ******************************************************************************************************************* 
 def from_gpu(data):
@@ -134,7 +135,7 @@ class CaptureLayerInput(CaptureLayerData):
         assert(isinstance(array_item, int) or array_item is None)
         
         if isinstance(array_item, int):
-            assert(array_item >= 0) 
+            assert array_item >= 0
         
         self.array_item = array_item
         
@@ -143,8 +144,6 @@ class CaptureLayerInput(CaptureLayerData):
     def __call__(self, m, i, o):
         
         if self.device is None or self.device == o.device:
-            
-            
             
             if self.array_item is None:
                 self.data = [n.data for n in i]
@@ -173,8 +172,8 @@ class CaptureGradInput(CaptureLayerData):
 # *******************************************************************************************************************             
 def LoadImageToTensor(file_name, device, norm=True):
     
-    assert(isinstance(file_name,str))
-    assert(isinstance(device,torch.device))
+    assert isinstance(file_name,str)
+    assert isinstance(device,torch.device)
     
     toTensor    = transforms.ToTensor()
     toNorm      = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -195,9 +194,9 @@ def LoadImageToTensor(file_name, device, norm=True):
 # *******************************************************************************************************************             
 def SaveGrayTensorToImage(tens, file_name):
 
-    assert(isinstance(file_name,str))
-    assert(torch.is_tensor(tens))
-    assert(len(tens.size()) == 3 or len(tens.size()) == 4)
+    assert isinstance(file_name,str)
+    assert torch.is_tensor(tens)
+    assert len(tens.size()) == 3 or len(tens.size()) == 4
     
     if len(tens.size()) == 4:
         sz         = tens.size()
@@ -215,14 +214,14 @@ def SaveGrayTensorToImage(tens, file_name):
 # *******************************************************************************************************************             
 def SaveColorTensorToImage(tens, file_name):
 
-    assert(isinstance(file_name,str))
-    assert(torch.is_tensor(tens))
-    assert(len(tens.size()) == 3 or len(tens.size()) == 4)
+    assert isinstance(file_name,str)
+    assert torch.is_tensor(tens)
+    assert len(tens.size()) == 3 or len(tens.size()) == 4
 
     if len(tens.size()) == 4:
         sz         = tens.size()
-        assert(sz[0] == 1)
-        assert(sz[1] == 3)
+        assert sz[0] == 1
+        assert sz[1] == 3
         tens       = tens.reshape(sz[1],sz[2],sz[3])
 
     np_tens    = tens.cpu().detach().numpy()                            # Put the tensor into a cpu numpy
@@ -235,9 +234,9 @@ def SaveColorTensorToImage(tens, file_name):
 # *******************************************************************************************************************             
 def SaveGrayNumpyToImage(np_im, file_name):
     
-    assert(isinstance(file_name,str))
-    assert(isinstance(np_im, np.ndarray))
-    assert(len(np_im.shape) == 2)
+    assert isinstance(file_name,str)
+    assert isinstance(np_im, np.ndarray)
+    assert len(np_im.shape) == 2
     
     np_im    = cv2.cvtColor(np_im,  cv2.COLOR_GRAY2BGR)                 # Convert gray to BGR color
     np_im    = (np_im*255.0).astype(np.uint8)                           # Make it range from 0 to 255 and convert to byte
@@ -247,8 +246,8 @@ def SaveGrayNumpyToImage(np_im, file_name):
 # *******************************************************************************************************************             
 def TensorToNumpyImages(tens):
     
-    assert(torch.is_tensor(tens))
-    assert(len(tens.size()) == 3 or len(tens.size()) == 4)
+    assert torch.is_tensor(tens)
+    assert len(tens.size()) == 3 or len(tens.size()) == 4
 
     np_im = tens.cpu().detach().numpy()                                     # Now we get the individual saliency maps to save
 
@@ -264,8 +263,8 @@ def TensorToNumpyImages(tens):
 # *******************************************************************************************************************             
 def NumpyToTensorImages(np_im, device='cpu'):
     
-    assert(isinstance(np_im, np.ndarray))
-    assert(len(np_im.shape) == 3 or len(np_im.shape) == 4)
+    assert isinstance(np_im, np.ndarray)
+    assert len(np_im.shape) == 3 or len(np_im.shape) == 4
     
     toTensor    = transforms.ToTensor()
     
@@ -277,10 +276,10 @@ def NumpyToTensorImages(np_im, device='cpu'):
 # *******************************************************************************************************************             
 def AlphaBlend(im1, im2, alpha=0.75):
     
-    assert(isinstance(im1,np.ndarray) or torch.is_tensor(im1))
-    assert(isinstance(im2,np.ndarray) or torch.is_tensor(im2))
-    assert(type(im1) == type(im2))
-    assert(isinstance(alpha,float))
+    assert isinstance(im1,np.ndarray) or torch.is_tensor(im1)
+    assert isinstance(im2,np.ndarray) or torch.is_tensor(im2)
+    assert type(im1) == type(im2)
+    assert isinstance(alpha,float)
     
     t_alpha     = alpha
     r_alpha     = 1.0
@@ -291,10 +290,10 @@ def AlphaBlend(im1, im2, alpha=0.75):
 # *******************************************************************************************************************             
 def AlphaMask(im1, mask, alpha=1.0):
     
-    assert(isinstance(im1,np.ndarray) or torch.is_tensor(im1))
-    assert(isinstance(mask,np.ndarray) or torch.is_tensor(mask))
-    assert(type(im1) == type(mask))
-    assert(isinstance(alpha,float))
+    assert isinstance(im1,np.ndarray) or torch.is_tensor(im1)
+    assert isinstance(mask,np.ndarray) or torch.is_tensor(mask)
+    assert type(im1) == type(mask)
+    assert isinstance(alpha,float)
     
     if isinstance(im1,np.ndarray):
         im2         = np.zeros_like(im1)
@@ -311,8 +310,8 @@ def AlphaMask(im1, mask, alpha=1.0):
 # *******************************************************************************************************************             
 def AttenuateBorders(im, ammount=[0.333,0.666]):
     
-    assert(isinstance(im,np.ndarray) or torch.is_tensor(im))
-    assert(isinstance(ammount,list))
+    assert isinstance(im,np.ndarray) or torch.is_tensor(im)
+    assert isinstance(ammount,list)
     
     im[:,0,:]       = im[:,0,:]         * ammount[0]
     im[:,:,0]       = im[:,:,0]         * ammount[0]
@@ -329,7 +328,7 @@ def AttenuateBorders(im, ammount=[0.333,0.666]):
 # *******************************************************************************************************************             
 def RangeNormalize(im):
     
-    assert(torch.is_tensor(im))
+    assert torch.is_tensor(im)
     
     imax = torch.max(im)
     imin = torch.min(im)
@@ -339,17 +338,37 @@ def RangeNormalize(im):
         return (im - imin)/rng
     else:
         return im
-        
+
+# *******************************************************************************************************************             
+def TileOutput(tensor, mask, image_list, mask_func):
+
+    assert torch.is_tensor(tensor)
+    assert torch.is_tensor(mask)
+    assert isinstance(image_list,list)
+    assert callable(mask_func)
+
+    heatmap, result         = visualize_cam(mask, tensor)
+    
+    hard_masked,_           = mask_func(tensor, mask)
+    hard_masked             = hard_masked.squeeze(0)
+    masked                  = AlphaMask(tensor, mask).squeeze(0)
+    masked                  = RangeNormalize(masked)
+    
+    image_list.append(torch.stack([tensor.squeeze().cpu(), heatmap, 
+                                   result, masked, hard_masked], 0))
+    
+    return image_list
+
 # *******************************************************************************************************************             
 class DeNormalize:
     
     def __init__(self,mean,std):
         
-        assert(isinstance(mean,list))
-        assert(isinstance(std,list))
+        assert isinstance(mean,list)
+        assert isinstance(std,list)
         
-        assert(len(mean)    == 3)
-        assert(len(std)     == 3)
+        assert len(mean)    == 3
+        assert len(std)     == 3
         
         self.mean   = torch.tensor(mean).reshape(1,len(mean),1)
         self.std    = torch.tensor(std).reshape(1,len(std),1)
@@ -357,8 +376,8 @@ class DeNormalize:
         
     def __call__(self, tens):
 
-        assert(torch.is_tensor(tens))
-        assert(len(tens.size()) == 4)
+        assert torch.is_tensor(tens)
+        assert len(tens.size()) == 4
         
         sz      = tens.size()
         
@@ -401,7 +420,7 @@ class SmoothGrad:
         self.stdev_spread   = stdev_spread
     
         self.getSmap        = maps.SMOEScaleMap()                                   
-        self.getNorm        = maps.Normalize2D()      
+        self.getNorm        = maps.GaussNorm2D()      
         self.maps_magnitude = maps_magnitude                              
  
     
@@ -456,174 +475,3 @@ class SmoothGrad:
         
         return out_csmap, out_smaps, ret_image
     
-# ******************************************************************************************************************* 
-# *******************************************************************************************************************     
-class ScoreMap(torch.autograd.Function):
-
-    @staticmethod
-    def forward(ctx, scores):
-        
-        ctx.save_for_backward(scores)
-        return torch.tensor(1)
-    
-    @staticmethod
-    def backward(ctx, grad):
-                
-        saved        = ctx.saved_tensors
-        g_scores     = torch.ones_like(saved[0])
-        
-        return g_scores
-    
-# *******************************************************************************************************************     
-class GradCAM_SMOE(GradCAM):
-    """Calculate SMOE Scale GradCAM salinecy map.
-
-    A simple example:
-
-        # initialize a model, model_dict and gradcampp
-        resnet = torchvision.models.resnet101(pretrained=True)
-        resnet.eval()
-        gradcampp = GradCAMpp.from_config(model_type='resnet', arch=resnet, layer_name='layer4')
-
-        # get an image and normalize with mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-        img = load_img()
-        normed_img = normalizer(img)
-
-        # get a GradCAM saliency map on the class index 10.
-        mask, logit = gradcampp(normed_img, class_idx=10)
-
-        # make heatmap from mask and synthesize saliency map using heatmap and img
-        heatmap, cam_result = visualize_cam(mask, img)
-    """
-
-    def forward(self, input, class_idx=None, retain_graph=False, method='V1'):
-        """
-        Args:
-            input: input image with shape of (1, 3, H, W)
-            class_idx (int): class index for calculating GradCAM.
-                    If not specified, the class index that makes the highest model prediction score will be used.
-        Return:
-            mask: saliency map of the same spatial dimension with input
-            logit: model output
-        """
-        getSmap     = maps.SMOEScaleMap()
-        getNorm     = maps.Normalize2D()
-        
-        b, c, h, w  = input.size()
-
-        logit = self.model_arch(input)
-        
-        if class_idx is None:
-            score = logit[:, logit.max(1)[-1]].squeeze()
-        else:
-            score = logit[:, class_idx].squeeze()
-
-        self.model_arch.zero_grad()
-        
-        score.backward(retain_graph=retain_graph)
-        
-        gradients           = self.gradients['value']
-        activations         = self.activations['value']
-        b, k, u, v          = gradients.size()
-        
-        
-        if method=='V1':
-            # V1 SIGN over layer means
-            alpha               = gradients.view(b, k, -1).mean(2)
-            weights             = alpha.view(b, k, 1, 1)
-            weights             = torch.sign(weights) 
-        elif method=='V2':
-            # V2 SIGN over all values
-            weights             = torch.sign(gradients) 
-        elif method=='V3':
-            # V3 SIGN over all values
-            weights             = gradients # Just take the raw gradients
-        elif method=='V4':
-            # V4 Original method
-            alpha               = gradients.view(b, k, -1).mean(2)
-            weights             = alpha.view(b, k, 1, 1)
-            
-        saliency_map        = weights*activations
-        #saliency_map        = activations # Should look exactly like SMOE-Scale if we use this line
-        saliency_map        = F.relu(saliency_map)
-        saliency_map        = getNorm(getSmap(saliency_map)).view(b, 1, u, v)
-
-        #saliency_map = (weights*activations).sum(1, keepdim=True)
-        #saliency_map = F.relu(saliency_map)
-        
-        #saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
-        #saliency_map_min, saliency_map_max = saliency_map.min(), saliency_map.max()
-        #saliency_map        = (saliency_map-saliency_map_min).div(saliency_map_max-saliency_map_min).data
-
-        return saliency_map, logit    
-    
-# *******************************************************************************************************************     
-class GradCAMpp_SMOE(GradCAM):
-    """Calculate SMOE Scale GradCAM++ salinecy map.
-
-    A simple example:
-
-        # initialize a model, model_dict and gradcampp
-        resnet = torchvision.models.resnet101(pretrained=True)
-        resnet.eval()
-        gradcampp = GradCAMpp.from_config(model_type='resnet', arch=resnet, layer_name='layer4')
-
-        # get an image and normalize with mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-        img = load_img()
-        normed_img = normalizer(img)
-
-        # get a GradCAM saliency map on the class index 10.
-        mask, logit = gradcampp(normed_img, class_idx=10)
-
-        # make heatmap from mask and synthesize saliency map using heatmap and img
-        heatmap, cam_result = visualize_cam(mask, img)
-    """
-
-    def forward(self, input, class_idx=None, retain_graph=False):
-        """
-        Args:
-            input: input image with shape of (1, 3, H, W)
-            class_idx (int): class index for calculating GradCAM.
-                    If not specified, the class index that makes the highest model prediction score will be used.
-        Return:
-            mask: saliency map of the same spatial dimension with input
-            logit: model output
-        """
-        getSmap     = maps.SMOEScaleMap()
-        getNorm     = maps.Normalize2D()
-        
-        b, c, h, w = input.size()
-
-        logit = self.model_arch(input)
-        if class_idx is None:
-            score = logit[:, logit.max(1)[-1]].squeeze()
-        else:
-            score = logit[:, class_idx].squeeze()
-
-        self.model_arch.zero_grad()
-        score.backward(retain_graph=retain_graph)
-        gradients           = self.gradients['value'] # dS/dA
-        activations         = self.activations['value'] # A
-        b, k, u, v          = gradients.size()
-
-        alpha_num           = gradients.pow(2)
-        alpha_denom         = gradients.pow(2).mul(2) + \
-                                activations.mul(gradients.pow(3)).view(b, k, u*v).sum(-1, keepdim=True).view(b, k, 1, 1)
-        alpha_denom         = torch.where(alpha_denom != 0.0, alpha_denom, torch.ones_like(alpha_denom))
-
-        alpha               = alpha_num.div(alpha_denom+1e-7)
-        positive_gradients  = F.relu(score.exp()*gradients) # ReLU(dY/dA) == ReLU(exp(S)*dS/dA))
-        weights             = (alpha*positive_gradients).view(b, k, u*v).sum(-1).view(b, k, 1, 1)
-
-        saliency_map        = weights*activations
-        saliency_map        = F.relu(saliency_map)
-        saliency_map        = getNorm(getSmap(saliency_map)).view(b, 1, u, v)
-
-        #saliency_map = (weights*activations).sum(1, keepdim=True)
-        #saliency_map = F.relu(saliency_map)
-        
-        saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
-        saliency_map_min, saliency_map_max = saliency_map.min(), saliency_map.max()
-        saliency_map        = (saliency_map-saliency_map_min).div(saliency_map_max-saliency_map_min).data
-
-        return saliency_map, logit
