@@ -93,7 +93,7 @@ class GaussNorm2D(nn.Module):
             s       = x.std(dim=1)
             s       = s.reshape(s.size()[0],1)
         else:
-            s       = seld.const_std
+            s       = self.const_std
         
         r'''
             The normal cumulative distribution function is used to squash the values from 0 to 1
