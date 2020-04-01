@@ -50,6 +50,7 @@ from torchvision import models
 from torchvision.models.utils import load_state_dict_from_url
 import torch.nn.functional as F
 import torch
+import torch.nn
 import norm
 
 # *******************************************************************************************************************       
@@ -68,12 +69,12 @@ class ScoreMap(torch.autograd.Function):
         g_scores     = torch.ones_like(saved[0])
         
         return g_scores
-
+        
 class ResNet_FastCAM(models.ResNet):
     r'''
         Some of the code here is borrowed from the PyTorch source code.
         
-        This is just a wrapper around PyTorches ResNet. We use it so we can only compute
+        This is just a wrapper around PyTorch's ResNet. We use it so we can only compute
         gradents over the last few layers and speed things up. Otherwise, ResNet will
         compute the usual gradients all the way through the network. 
         
@@ -104,10 +105,10 @@ class ResNet_FastCAM(models.ResNet):
             x = self.layer1(x)
             x = self.layer2(x)
             x = self.layer3(x)
-        
+            x = self.layer4(x)
+            
         r'''
             To do:
-                Only compute gradients on the very last layer of layer4
                 combine layer4 output with the SaliencyMap final layer
         '''
         
@@ -116,13 +117,12 @@ class ResNet_FastCAM(models.ResNet):
         '''
         with torch.set_grad_enabled(True):
             # Here we save out the layer so we can process it later
-            x           = self.layer4(x)
-            self.layer  = x
+            x.requires_grad = True
+            self.layer      = x
             self.layer.retain_grad()
-            x           = self.layer
-            x           = self.avgpool(x)
-            x           = torch.flatten(x, 1)
-            x           = self.fc(x)
+            x               = self.avgpool(self.layer)
+            x               = torch.flatten(x, 1)
+            x               = self.fc(x)
 
         return x
 
@@ -146,7 +146,7 @@ class ResNet_FastCAM(models.ResNet):
                 lm      = logit.max(1)[1]  
                 r'''
                     This gets the logits into a form usable when we run a batch. This seems suboptimal.
-                    Open to ideas about how to make this better/faster
+                    Open to ideas about how to make this better/faster.
                 '''
                 lm      = torch.stack([i*self.num_classes + v for i,v in enumerate(lm)])
                     
