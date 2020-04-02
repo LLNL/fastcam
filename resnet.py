@@ -50,7 +50,6 @@ from torchvision import models
 from torchvision.models.utils import load_state_dict_from_url
 import torch.nn.functional as F
 import torch
-import torch.nn
 import norm
 
 # *******************************************************************************************************************       
@@ -69,26 +68,31 @@ class ScoreMap(torch.autograd.Function):
         g_scores     = torch.ones_like(saved[0])
         
         return g_scores
-        
+
+# *******************************************************************************************************************        
 class ResNet_FastCAM(models.ResNet):
     r'''
         Some of the code here is borrowed from the PyTorch source code.
         
-        This is just a wrapper around PyTorch's ResNet. We use it so we can only compute
+        This is just a wrapper around PyTorch's own ResNet. We use it so we can only compute
         gradents over the last few layers and speed things up. Otherwise, ResNet will
         compute the usual gradients all the way through the network. 
         
         It is declared the usual way, but returns a saliency map in addition to the logits. 
+        
+        See: torchvision/models/resnet.py in the torchvision package. 
     '''
     def __init__(self, block, layers, num_classes=1000, **kwargs):
         
-        super(ResNet_FastCAM, self).__init__(block, layers, num_classes=num_classes, **kwargs)
-        
+        assert callable(block)
+        assert isinstance(layers,list)
         assert isinstance(num_classes,int)
         
-        self.get_norm       = norm.RangeNorm2D()
-        self.num_classes    = num_classes
-        self.layer          = None
+        super(ResNet_FastCAM, self).__init__(block, layers, num_classes=num_classes, **kwargs)
+        
+        self.get_norm       = norm.RangeNorm2D()    # Hard range normalization between 0 to 1
+        self.num_classes    = num_classes           # We need this to define the max logits for the CAM map 
+        self.layer          = None                  # This is a dummy layer to stash activations and gradients prior to average pooling
         
     def _forward_impl(self, x):
 
@@ -120,6 +124,8 @@ class ResNet_FastCAM(models.ResNet):
             x.requires_grad = True
             self.layer      = x
             self.layer.retain_grad()
+            
+            # Now run the rest of the network with gradients on
             x               = self.avgpool(self.layer)
             x               = torch.flatten(x, 1)
             x               = self.fc(x)
@@ -132,6 +138,12 @@ class ResNet_FastCAM(models.ResNet):
             Some of this code is borrowed from pytorch gradcam:
             https://github.com/vickyliin/gradcam_plus_plus-pytorch
         '''
+        
+        assert torch.is_tensor(x) 
+        assert len(x.size()) == 4
+        assert class_idx is None or (isinstance(class_idx,int) and class_idx >=0 and class_idx < self.num_classes)
+        assert isinstance(retain_graph,bool)
+        assert isinstance(method,str)
         
         b, c, h, w  = x.size()
         
@@ -159,13 +171,14 @@ class ResNet_FastCAM(models.ResNet):
             else:
                 score   = logit[:, class_idx].squeeze()
     
-    
+            # Pass through layer to make auto grad happy
             score_end   = ScoreMap.apply(score)
     
             self.zero_grad()
     
             score_end.backward(retain_graph=retain_graph)
             
+            # Make naming clearer for next parts
             gradients   = self.layer.grad 
             activations = self.layer
         
@@ -185,25 +198,39 @@ class ResNet_FastCAM(models.ResNet):
             elif method=='gradcam':
                 alpha               = gradients.view(b, k, -1).mean(2)
                 weights             = alpha.view(b, k, 1, 1)
+            else:
+                #print("Unknown CAM type: \"{}\"".format(method))
+                raise ValueError("Unknown CAM type: \"{}\"".format(method))
     
             saliency_map        = (weights*activations).sum(1, keepdim=True) 
+            
+            # Lets just deal with positive gradients
             saliency_map        = F.relu(saliency_map)
             
+            # Get back to input image size
             saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
             
+            # Hard range normalization
             saliency_map        = self.get_norm(saliency_map.squeeze(1))
 
         return  logit, saliency_map
-
+    
+# *******************************************************************************************************************
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
+    
+    assert isinstance(pretrained,bool)
+    assert isinstance(progress,bool)
+    
     model = ResNet_FastCAM(block, layers, **kwargs)
+    
     if pretrained:
         state_dict = load_state_dict_from_url(models.resnet.model_urls[arch],
                                               progress=progress)
         model.load_state_dict(state_dict)
+        
     return model
 
-
+# *******************************************************************************************************************
 def resnet18(pretrained=False, progress=True, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
