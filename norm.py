@@ -45,6 +45,7 @@ Software released as LLNL-CODE-802426.
 
 See also: https://arxiv.org/abs/1911.11293
 '''
+
 import math
 import torch
 import torch.nn as nn
@@ -58,6 +59,10 @@ class GaussNorm2D(nn.Module):
         
         Input can be any real valued number (supported by hardware)
         Output will range from 0 to 1
+        
+        Notes:
+        
+        GaussNorm2D will produce slightly better results, but it is also a bit more expensive to run. 
     '''
     
     def __init__(self, const_mean=None, const_std=None):
@@ -114,6 +119,11 @@ class GammaNorm2D(nn.Module):
         
         Input can be any positive real valued number (supported by hardware)
         Output will range from 0 to 1
+        
+        Notes:
+        
+        (1) When applied to each saliency map, this method produces slightly better results than GaussNorm2D.
+        (2) This method is a bit more expensive than GaussNorm2D.
     '''
     
     def __init__(self):
