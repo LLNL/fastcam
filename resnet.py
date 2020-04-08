@@ -81,6 +81,19 @@ class ResNet_FastCAM(models.ResNet):
         It is declared the usual way, but returns a saliency map in addition to the logits. 
         
         See: torchvision/models/resnet.py in the torchvision package. 
+        
+        Parameters:
+        
+            block:         This is the ResNet block pattern in a list. Something like [3, 4, 23, 3]
+            layers:        What kind of blocks are we using. For instance models.resnet.Bottleneck . This should be callable. 
+            num_classes:   How many classes will this network use? Should be an integer. Default: 1000  
+            
+        Will Return:
+        
+            logit:         The standard ResNet logits.
+            saliency_map:  This is the combined, normalized saliency map which will resized to be the same
+                           as the input [batch size x height x width]. 
+        
     '''
     def __init__(self, block, layers, num_classes=1000, **kwargs):
         
@@ -120,35 +133,61 @@ class ResNet_FastCAM(models.ResNet):
             Turn on gradients and then get them into a container for usage by CAM
         '''
         with torch.set_grad_enabled(True):
-            # Here we save out the layer so we can process it later
+            r'''
+                Here we save out the layer so we can process it later
+            '''
             x.requires_grad = True
             self.layer      = x
             self.layer.retain_grad()
             
-            # Now run the rest of the network with gradients on
+            r'''
+                Now run the rest of the network with gradients on
+            '''
             x               = self.avgpool(self.layer)
             x               = torch.flatten(x, 1)
             x               = self.fc(x)
 
         return x
 
-    def forward(self, x, class_idx=None, retain_graph=False, method='gradcampp'):
-        
+    def forward(self, x, class_idx=None, method='gradcampp', retain_graph=False):
         r'''
-            Some of this code is borrowed from pytorch gradcam:
-            https://github.com/vickyliin/gradcam_plus_plus-pytorch
+            Call forward on the input x and return saliency map and logits. 
+            
+            Args:
+            
+                x:             A standard Torch Tensor of size [Batch x 3 x Height x Width]
+                class_idx:     For CAM, what class should we propagate from. If None, use the max logit. 
+                method:        A string, either 'gradcam' or 'gradcampp'. both yeild the same ROAR/KARR score.  
+                retain_graph:  If you don't know what this means, leave it alone.   
+                
+            Return:
+            
+                logit:         The standard ResNet logits.
+                saliency_map:  This is the combined, normalized saliency map which will resized to be the same
+                               as the input [batch size x height x width]. 
+        
+            NOTE:
+        
+                Some of this code is borrowed from pytorch gradcam:
+                https://github.com/vickyliin/gradcam_plus_plus-pytorch
         '''
         
-        assert torch.is_tensor(x) 
-        assert len(x.size()) == 4
-        assert class_idx is None or (isinstance(class_idx,int) and class_idx >=0 and class_idx < self.num_classes)
-        assert isinstance(retain_graph,bool)
-        assert isinstance(method,str)
+        assert torch.is_tensor(x), "Input x must be a Torch Tensor" 
+        assert len(x.size()) == 4, "Input x must have for dims [Batch x 3 x Height x Width]"
+        assert class_idx is None or (isinstance(class_idx,int) and class_idx >=0 and class_idx < self.num_classes), "class_idx should not be silly"
+        assert isinstance(retain_graph,bool), "retain_graph must be a bool."
+        assert isinstance(method,str), "method must be a string"
         
         b, c, h, w  = x.size()
         
+        r'''
+            Run network forward on input x. Grads will only be kept on the last few layers. 
+        '''
         logit       = self._forward_impl(x)
         
+        r'''
+            Torch will need to keep grads for these things.
+        '''
         with torch.set_grad_enabled(True):
         
             if class_idx is None:
@@ -171,22 +210,37 @@ class ResNet_FastCAM(models.ResNet):
             else:
                 score   = logit[:, class_idx].squeeze()
     
-            # Pass through layer to make auto grad happy
+            r'''
+                Pass through layer to make auto grad happy
+            '''
             score_end   = ScoreMap.apply(score)
     
+            r'''
+                Zero out grads and then run backwards. 
+                
+                NOTE: This will only run backwards to the average pool layer then stop.
+            '''
             self.zero_grad()
-    
             score_end.backward(retain_graph=retain_graph)
             
-            # Make naming clearer for next parts
+            r'''
+                Make naming clearer for next parts
+            '''
             gradients   = self.layer.grad 
             activations = self.layer
         
+        r'''
+            Make sure torch doesn't keep grads for all this stuff since it will not be
+            needed.
+        '''
         with torch.set_grad_enabled(False):
             
             b, k, u, v          = gradients.size()
-            
+
             if method=='gradcampp':
+                r'''
+                    GradCAM++ Computation
+                '''
                 alpha_num           = gradients.pow(2)
                 alpha_denom         = gradients.pow(2).mul(2) + \
                                         activations.mul(gradients.pow(3)).view(b, k, u*v).sum(-1, keepdim=True).view(b, k, 1, 1)
@@ -195,22 +249,34 @@ class ResNet_FastCAM(models.ResNet):
                 alpha               = alpha_num.div(alpha_denom+1e-7)
                 positive_gradients  = F.relu(score.exp()*gradients) # ReLU(dY/dA) == ReLU(exp(S)*dS/dA))
                 weights             = (alpha*positive_gradients).view(b, k, u*v).sum(-1).view(b, k, 1, 1)
+
             elif method=='gradcam':
+                r'''
+                    Standard GradCAM Computation
+                '''
                 alpha               = gradients.view(b, k, -1).mean(2)
                 weights             = alpha.view(b, k, 1, 1)
             else:
-                #print("Unknown CAM type: \"{}\"".format(method))
+                r'''
+                    Just GradCAM++ and original GradCAM
+                '''
                 raise ValueError("Unknown CAM type: \"{}\"".format(method))
     
             saliency_map        = (weights*activations).sum(1, keepdim=True) 
             
-            # Lets just deal with positive gradients
+            r'''
+                Lets just deal with positive gradients
+            '''
             saliency_map        = F.relu(saliency_map)
             
-            # Get back to input image size
+            r'''
+                Get back to input image size
+            '''
             saliency_map        = F.upsample(saliency_map, size=(h, w), mode='bilinear', align_corners=False)
             
-            # Hard range normalization
+            r'''
+                Hard range normalization
+            '''
             saliency_map        = self.get_norm(saliency_map.squeeze(1))
 
         return  logit, saliency_map
@@ -231,6 +297,12 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     return model
 
 # *******************************************************************************************************************
+r'''
+    Everything from here on down is just copied verbatum from torchvision. 
+    
+    Let me know if there is a better way to do this. 
+'''
+
 def resnet18(pretrained=False, progress=True, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_

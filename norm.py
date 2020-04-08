@@ -62,7 +62,9 @@ class GaussNorm2D(nn.Module):
         
         Notes:
         
-        GaussNorm2D will produce slightly better results, but it is also a bit more expensive to run. 
+        (1) GammaNorm2D will produce slightly better results
+            The sum ROAR/KAR will improve from 1.44 to 1.45 for FastCAM using GradCAM.
+        (2) This method is a bit less expensive than GammaNorm2D.
     '''
     
     def __init__(self, const_mean=None, const_std=None):
@@ -77,10 +79,14 @@ class GaussNorm2D(nn.Module):
         
     def forward(self, x):
         r'''
-            Original shape is something like [64,7,7] i.e. [batch size x height x width]
+            Input: 
+                x:     A Torch Tensor image with shape [batch size x height x width] e.g. [64,7,7]
+            Return:
+                x:     x Normalized by computing mean and std over each individual batch item and squashed with a 
+                       Normal/Gaussian CDF.  
         '''
-        assert torch.is_tensor(x)
-        assert len(x.size()) == 3
+        assert torch.is_tensor(x), "Input must be a Torch Tensor"
+        assert len(x.size()) == 3, "Input should be sizes [batch size x height x width]"
         
         s0      = x.size()[0]
         s1      = x.size()[1]
@@ -88,12 +94,18 @@ class GaussNorm2D(nn.Module):
 
         x       = x.reshape(s0,s1*s2) 
         
+        r'''
+            Compute Mean
+        '''
         if self.const_mean is None:
             m       = x.mean(dim=1)
             m       = m.reshape(m.size()[0],1)
         else:
             m       = self.const_mean
             
+        r'''
+            Compute Standard Deviation
+        '''
         if self.const_std is None:
             s       = x.std(dim=1)
             s       = s.reshape(s.size()[0],1)
@@ -101,7 +113,7 @@ class GaussNorm2D(nn.Module):
             s       = self.const_std
         
         r'''
-            The normal cumulative distribution function is used to squash the values from 0 to 1
+            The normal cumulative distribution function is used to squash the values from within the range of 0 to 1
         '''
         x       = 0.5*(1.0 + torch.erf((x-m)/(s*torch.sqrt(torch.tensor(2.0)))))
                 
@@ -123,6 +135,7 @@ class GammaNorm2D(nn.Module):
         Notes:
         
         (1) When applied to each saliency map, this method produces slightly better results than GaussNorm2D.
+            The sum ROAR/KAR will improve from 1.44 to 1.45 for FastCAM using GradCAM.
         (2) This method is a bit more expensive than GaussNorm2D.
     '''
     
@@ -130,7 +143,9 @@ class GammaNorm2D(nn.Module):
         
         super(GammaNorm2D, self).__init__()   
         
-        # Chebyshev polynomials for Gamma Function
+        r'''
+            Chebyshev polynomials for Gamma Function
+        '''
         self.cheb = torch.tensor([676.5203681218851,
                                   -1259.1392167224028,
                                   771.32342877765313,
@@ -194,8 +209,9 @@ class GammaNorm2D(nn.Module):
         
         L       = x.pow(s) * gs * torch.exp(-x)
         
-        # For the gamma function: f(x + 1) = x * f(x)
-        
+        r'''
+            For the gamma function: f(x + 1) = x * f(x)
+        '''
         gs      *= s    # Gamma(s + 1)
         R       = torch.reciprocal(gs) * torch.ones_like(x)
         X       = x     # x.pow(1)
@@ -255,31 +271,41 @@ class GammaNorm2D(nn.Module):
             Output is a single value (per image) for k and th
         '''
         
-        # avoid log(0)
+        r'''
+            avoid log(0)
+        '''
         x  = x + 0.0000001
         
-        # Calculate s
-        # If x has been normalized, the first number is negative, the second number is positive (larger?)
-        
+        r'''
+            Calculate s
+            This is somewhat akin to computing a log standard deviation. 
+        '''
         s  = torch.log(torch.mean(x,dim=1)) - torch.mean(torch.log(x),dim=1)
         
-        # Get estimate of k to within 1.5%
-        #
-        # NOTE: K gets smaller as log variance s increases
-        #
+        r'''
+            Get estimate of k to within 1.5%
+        
+            NOTE: K gets smaller as log variance s increases.
+        '''
         s3 = s - 3.0
         rt = torch.sqrt(s3.pow(2) + 24.0 * s)
         nm = 3.0 - s + rt
         dn = 12.0 * s
         k  = nm / dn + 0.0000001
 
-        # Do i Newton-Raphson steps to get closer than 1.5%
-        # For i=5 gets us within 4 or 5 decimal places
+        r'''
+            Do i Newton-Raphson steps to get closer than 1.5%
+            For i=5 gets us within 4 or 5 decimal places
+        '''
         for _ in range(i):
             k =  self._k_update(k,s)
         
-        # prevent gamma(k) from being silly big
-        # With k=18, gamma(k) is still 355687428096000.0
+        r'''
+            prevent gamma(k) from being silly big or zero
+            With k=18, gamma(k) is still 355687428096000.0
+            This is because the Gamma function is a factorial function with support 
+            for positive natural numbers (here we only support reals).
+        '''
         k   = torch.clamp(k, 0.0000001, 18.0)
         
         th  = torch.reciprocal(k) * torch.mean(x,dim=1)
@@ -288,10 +314,16 @@ class GammaNorm2D(nn.Module):
      
     def forward(self, x):
         r'''
-            Original shape is something like [64,7,7] i.e. [batch size x height x width]
+            Input: 
+                x:     A Torch Tensor image with shape [batch size x height x width] e.g. [64,7,7]
+                       All values should be real positive (i.e. >= 0).  
+            Return:
+                x:     x Normalized by computing shape and scale over each individual batch item and squashed with a 
+                       Gamma CDF.  
         '''
-        assert torch.is_tensor(x)
-        assert len(x.size()) == 3
+        
+        assert torch.is_tensor(x), "Input must be a Torch Tensor"
+        assert len(x.size()) == 3, "Input should be sizes [batch size x height x width]"
         
         s0      = x.size()[0]
         s1      = x.size()[1]
@@ -299,15 +331,21 @@ class GammaNorm2D(nn.Module):
 
         x       = x.reshape(s0,s1*s2) 
         
-        # offset from just a little more than 0, keeps k sane
+        r'''
+            offset from just a little more than 0, keeps k sane
+        '''
         x       = x - torch.min(x,dim=1)[0] + 0.0000001
         
         k,th    = self._compute_ml_est(x)
         
-        # Gamma CDF
+        '''
+            Squash with a Gamma CDF for range within 0 to 1.
+        '''
         x       = (1.0/self._gamma(k)) * self._lower_incl_gamma(k, x/th)
-        
-        # There are weird edge cases (e.g. all numbers are equal), prevent NaN
+    
+        r'''
+            There are weird edge cases (e.g. all numbers are equal), prevent NaN
+        '''
         x       = torch.where(torch.isfinite(x), x, torch.zeros_like(x))
                 
         x       = x.reshape(s0,s1,s2)
@@ -324,6 +362,9 @@ class RangeNorm2D(nn.Module):
         
         Input can be any real valued number (supported by hardware)
         Output will range from 0 to 1
+        
+        Parameters:
+            full_norm:     This forces the values to range completely from 0 to 1. 
     '''
     
     def __init__(self, full_norm=True, eps=10e-10):
@@ -334,10 +375,15 @@ class RangeNorm2D(nn.Module):
                 
     def forward(self, x):
         r'''
-            Original shape is something like [64,7,7] i.e. [batch size x height x width]
+            Input: 
+                x:     A Torch Tensor image with shape [batch size x height x width] e.g. [64,7,7]
+                       All values should be real positive (i.e. >= 0).  
+            Return:
+                x:     x Normalized by dividing by either the min value or the range between max and min. 
+                       Each max/min is computed for each batch item.  
         '''
-        assert torch.is_tensor(x)
-        assert len(x.size()) == 3
+        assert torch.is_tensor(x), "Input must be a Torch Tensor"
+        assert len(x.size()) == 3, "Input should be sizes [batch size x height x width]"
         
         s0      = x.size()[0]
         s1      = x.size()[1]
@@ -356,7 +402,11 @@ class RangeNorm2D(nn.Module):
             nval    = x
             range   = xmax
         
-        # prevent divide by zero by setting zero to a small number
+        r'''
+            prevent divide by zero by setting zero to a small number
+            
+            Simply adding eps does not work will in this case. So we use torch.where to set a minimum value. 
+        '''
         eps_mat = torch.zeros_like(range) + self.eps
         range   = torch.where(range > self.eps, range, eps_mat)
         

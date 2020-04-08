@@ -70,7 +70,9 @@ class DropMap(torch.autograd.Function):
         drop_map        = ctx.saved_tensors
         g_pmap          = grad_output * drop_map[0]
         
-        # Just return empty since we don't have use for this gradient.
+        r'''
+            Just return empty since we don't have use for this gradient.
+        '''
         sz              = g_pmap.size()
         g_k             = torch.empty((sz[0],1), dtype=g_pmap.dtype, device=g_pmap.device)
         
@@ -99,9 +101,9 @@ class SaliencyMaskDropout(nn.Module):
         
         super(SaliencyMaskDropout, self).__init__()
         
-        assert isinstance(keep_percent,float)
-        assert keep_percent > 0
-        assert keep_percent <= 1.0
+        assert isinstance(keep_percent,float), "keep_percent should be a floating point value from 0 to 1"
+        assert keep_percent > 0, "keep_percent should be a floating point value from 0 to 1"
+        assert keep_percent <= 1.0, "keep_percent should be a floating point value from 0 to 1"
         
         self.keep_percent       = keep_percent
         if scale_map:
@@ -113,18 +115,18 @@ class SaliencyMaskDropout(nn.Module):
                 
     def forward(self, x, sal_map):
         
-        assert torch.is_tensor(x)
-        assert torch.is_tensor(sal_map)
+        assert torch.is_tensor(x), "Input x should be a Torch Tensor"
+        assert torch.is_tensor(sal_map), "Input sal_map should be a Torch Tensor"
         
         sal_map_size    = sal_map.size()
         x_size          = x.size()
         
-        assert len(x.size())        == 4
-        assert len(sal_map.size())  == 3
+        assert len(x.size())        == 4, "Input x should have 4 dimensions [batch size x chans x height x width]"
+        assert len(sal_map.size())  == 3, "Input sal_map should be 3D [batch size x height x width]"
         
-        assert x_size[0] == sal_map_size[0]
-        assert x_size[2] == sal_map_size[1]
-        assert x_size[3] == sal_map_size[2]
+        assert x_size[0] == sal_map_size[0], "x and sal_map should have same batch size"
+        assert x_size[2] == sal_map_size[1], "x and sal_map should have same height"
+        assert x_size[3] == sal_map_size[2], "x and sal_map should have same width"
         
         sal_map         = sal_map.reshape(sal_map_size[0], sal_map_size[1]*sal_map_size[2])
         
@@ -139,8 +141,8 @@ class SaliencyMaskDropout(nn.Module):
             Here we can check that the saliency map has valid values between 0 to 1 since we 
             have sorted the image. It's cheap now. 
         '''
-        assert s[:,0]  >= 0.0
-        assert s[:,-1] <= 1.0
+        assert s[:,0]  >= 0.0, "Saliency map should contain values within the range of 0 to 1"
+        assert s[:,-1] <= 1.0, "Saliency map should contain values within the range of 0 to 1"
                 
         r'''
             Get the kth value for each image in the batch.

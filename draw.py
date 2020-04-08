@@ -52,13 +52,15 @@ import math
 class _Draw(object):
     r'''
         This is a base class for drawing different representations of saliency maps.
+        
+        See the derived classes below for descriptions of parameters.
     '''
     
     def __init__(self, shape, weights, color):
         
-        assert isinstance(shape,tuple) or isinstance(shape,list)
-        assert len(shape) == 3
-        assert isinstance(color,int)   # How openCV treats this        
+        assert isinstance(shape,tuple) or isinstance(shape,list), "Output shape should be a list or tuple"
+        assert len(shape) == 3, "Output shape should be height x width x chan"
+        assert isinstance(color,int), "Color should be an OpenCV defined integer"   # How openCV treats this        
         
         self.height  = shape[0]
         self.width   = shape[1]
@@ -66,17 +68,17 @@ class _Draw(object):
         
         self.color   = color 
                 
-        assert self.height   > 0
-        assert self.width    > 0
-        assert self.chans    > 0
+        assert self.height   > 0, "Height should be greater than 0"
+        assert self.width    > 0, "Width should be greater than 0"
+        assert self.chans    > 0, "Chans should be greater than 0"
         
         if weights is None:
             self.weights = np.array([1.0 for _ in range(self.chans)]).astype(np.float32)
         elif len(weights) == 1:
-            assert weights[0] > 0
+            assert weights[0] > 0, "is specified, single weight should be greater than 0"
             self.weights = np.array([weights[0] for _ in range(self.chans)]).astype(np.float32)  
         else:
-            assert len(weights) == self.chans      
+            assert len(weights) == self.chans, "List of weights should be the same size as output channels"
             self.weights = np.array(weights).astype(np.float32)
                 
         self.fc             = float(self.chans)
@@ -92,7 +94,11 @@ class _Draw(object):
             data = (data - data.min()) / norm
             
         return data
-
+    
+    def __call__(self, input_patches):
+        
+        return self.make(input_patches)
+    
 # *******************************************************************************************************************        
 class HeatMap(_Draw):        
     r'''
@@ -102,7 +108,7 @@ class HeatMap(_Draw):
        
            shape:    This is a list (H,W,C) of the expected size of the saliency map.
            weights:  This is a list of length C of weight for each channel.
-           color:    The color conversion method to use.  
+           color:    The color conversion method to use. Default: cv2.COLOR_HSV2BGR 
            
         Returns:
         
@@ -114,25 +120,31 @@ class HeatMap(_Draw):
         super(HeatMap, self).__init__(shape=shape, weights=weights, color=color)
         
         self.Cexp        = 1.0/math.exp(1.0)
-        
-    def make(self, input_patches):
 
+    def make(self, input_patches):
         r'''
-            Input patches should be sized [height x width x channels]. Here channels is each saliency map.
+            Input:
+                input_patches: A numpy array. It should be sized [height x width x channels]. Here channels is each saliency map.
+            Returns:
+                A numpy array sized [height x width x 3].
         '''
-        assert isinstance(input_patches, np.ndarray)
-        assert len(input_patches.shape) == 3
-        assert input_patches.shape[0] == self.height
-        assert input_patches.shape[1] == self.width
-        assert input_patches.shape[2] == self.chans
+        assert isinstance(input_patches, np.ndarray), "Input should be a numpy array"
+        assert len(input_patches.shape) == 3, "Input should be height x width x chan"
+        assert input_patches.shape[0] == self.height, "Input should be height x width x chan"
+        assert input_patches.shape[1] == self.width, "Input should be height x width x chan"
+        assert input_patches.shape[2] == self.chans, "Input should be height x width x chan"
         
         patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
-        # Set intensity to be the weighted average
+        r'''
+            Set intensity to be the weighted average
+        '''
         V                   = np.sum(patches, 2) / self.sum_weights
         V                   /= V.max()    
         
-        # Use the standard integral method for saturation, but give it a boost.
+        r'''
+            Use the standard integral method for saturation, but give it a boost.
+        '''
         if self.frac != 1.0:
             S                   = 1.0 - (np.sum(patches,2)/(self.fc*np.amax(patches,2)) - self.frac)*(1.0/(1.0 - self.frac))
         else:
@@ -140,7 +152,9 @@ class HeatMap(_Draw):
             
         S                   = pow(S,self.Cexp)
         
-        # Set H,S and V in that order. 
+        r'''
+            Set H,S and V in that order. 
+        '''
         self.HSV_img[:,:,0] = (1.0 - V) * 240.0 
         self.HSV_img[:,:,1] = S
         self.HSV_img[:,:,2] = V
@@ -156,7 +170,7 @@ class LOVI(_Draw):
        
            shape:    This is a list (H,W,C) of the expected size of the saliency map.
            weights:  This is a list of length C of weight for each channel.
-           color:    The color conversion method to use.  
+           color:    The color conversion method to use. Default: cv2.COLOR_HSV2BGR 
            
         Returns:
         
@@ -175,22 +189,32 @@ class LOVI(_Draw):
         
     def make(self, input_patches):
         r'''
-            Input patches should be sized [height x width x channels]. Here channels is each saliency map.
+            Input:
+                input_patches: A numpy array. It should be sized [height x width x channels]. Here channels is each saliency map.
+            Returns:
+                A numpy array sized [height x width x 3].
         '''
-        assert isinstance(input_patches, np.ndarray)
-        assert len(input_patches.shape) == 3
-        assert input_patches.shape[0] == self.height
-        assert input_patches.shape[1] == self.width
-        assert input_patches.shape[2] == self.chans
+        assert isinstance(input_patches, np.ndarray), "Input should be a numpy array"
+        assert len(input_patches.shape) == 3, "Input should be height x width x chan"
+        assert input_patches.shape[0] == self.height, "Input should be height x width x chan"
+        assert input_patches.shape[1] == self.width, "Input should be height x width x chan"
+        assert input_patches.shape[2] == self.chans, "Input should be height x width x chan"
         
         patches             = self._range_normalize(input_patches.astype(np.float32)) * self.weights
         
-        # Compute position
+        r'''
+            Compute position
+        '''
         pos                 = patches * self.pos_img
-        # Get Mean
+        
+        r'''
+            Get Mean
+        '''
         m                   = np.sum(pos,2) / np.sum(patches,2)
 
-        # Set H,S and V in that order.        
+        r'''
+            Set H,S and V in that order.   
+        '''     
         self.HSV_img[:,:,0] = m*300
         self.HSV_img[:,:,1] = 1.0 - (np.sum(patches,2)/(self.fc*np.amax(patches,2)) - self.frac)*(1.0/(1.0 - self.frac))
         self.HSV_img[:,:,2] = np.amax(patches, 2)
@@ -198,5 +222,3 @@ class LOVI(_Draw):
         return cv2.cvtColor(self.HSV_img,  self.color)
 
         
-
-

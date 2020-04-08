@@ -45,6 +45,7 @@ Software released as LLNL-CODE-802426.
 
 See also: https://arxiv.org/abs/1911.11293
 '''
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -242,24 +243,34 @@ class CombineSaliencyMaps(nn.Module):
     r'''
         This will combine saliency maps into a single weighted saliency map. 
         
-        Input is a list of 3D tensors or various sizes. 
-        Output is a 3D tensor of size output_size
+        Input will be a list of 3D tensors or various sizes. 
+        Output is a 3D tensor of size batch size x output_size. We also return the individual saliency maps resized. to output_size
         
-        num_maps specifies how many maps we will combine
-        weights is an optional list of weights for each layer e.g. [1, 2, 3, 4, 5]
+        Parameters:
+        
+            output_size:    A list that contains the height and width of the output saliency maps.
+            num_maps:       Specifies how many maps we will combine.
+            weights:        Is an optional list of weights for each layer e.g. [1, 2, 3, 4, 5].
+            resize_mode:    Is given to Torch nn.functional.interpolate. Whatever it supports will work here. 
+            do_relu:        Should we do a final clamp on values to set all negative values to 0?
+            
+        Will Return:
+        
+            cm:     The combined saliency map over all layers sized batch size x output_size
+            ww:     Each individual saliency maps sized output_size. Note that we do not weight these outputs. 
     '''
     
-    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear', magnitude=False, do_relu=False):
+    def __init__(self, output_size=[224,224], map_num=5, weights=None, resize_mode='bilinear', do_relu=False):
         
         super(CombineSaliencyMaps, self).__init__()
         
-        assert isinstance(output_size,list)
-        assert isinstance(map_num,int)
-        assert isinstance(resize_mode,str)    
-        assert len(output_size) == 2
-        assert output_size[0] > 0
-        assert output_size[1] > 0
-        assert map_num > 0
+        assert isinstance(output_size,list), "Output size should be a list (e.g. [224,224])."
+        assert isinstance(map_num,int), "Number of maps should be a positive integer > 0"
+        assert isinstance(resize_mode,str), "Resize mode is a string recognized by Torch nn.functional.interpolate (e.g. 'bilinear')."    
+        assert len(output_size) == 2, "Output size should be a list (e.g. [224,224])."
+        assert output_size[0] > 0, "Output size should be a list (e.g. [224,224])."
+        assert output_size[1] > 0, "Output size should be a list (e.g. [224,224])."
+        assert map_num > 0, "Number of maps should be a positive integer > 0"
         
         r'''
             We support weights being None, a scaler or a list. 
@@ -283,7 +294,6 @@ class CombineSaliencyMaps(nn.Module):
         self.map_num        = map_num
         self.output_size    = output_size
         self.resize_mode    = resize_mode
-        self.magnitude      = magnitude
         self.do_relu        = do_relu
         
     def forward(self, smaps):
@@ -293,9 +303,9 @@ class CombineSaliencyMaps(nn.Module):
             Output shape is something like [64,224,244] i.e. [batch size x image_height x image_width]
         '''
 
-        assert isinstance(smaps,list)
-        assert len(smaps) == self.map_num
-        assert len(smaps[0].size()) == 3
+        assert isinstance(smaps,list), "Saliency maps must be in a list"
+        assert len(smaps) == self.map_num, "List length is not the same as predefined length"
+        assert len(smaps[0].size()) == 3, "Each saliency map must be 3D, [batch size x layer_height x layer_width]"
         
         bn  = smaps[0].size()[0]
         cm  = torch.zeros((bn, 1, self.output_size[0], self.output_size[1]), dtype=smaps[0].dtype, device=smaps[0].device)
@@ -304,24 +314,17 @@ class CombineSaliencyMaps(nn.Module):
         r'''
             Now get each saliency map and resize it. Then store it and also create a combined saliency map.
         '''
-        if not self.magnitude:
-            for i in range(len(smaps)):
-                assert torch.is_tensor(smaps[i])
-                wsz = smaps[i].size()
-                w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
-                w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
-                ww.append(w)
-                cm  += (w * self.weights[i])
-        else:
-            for i in range(len(smaps)):
-                assert torch.is_tensor(smaps[i])
-                wsz = smaps[i].size()
-                w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
-                w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
-                w   = w*w 
-                ww.append(w)
-                cm  += (w * self.weights[i])
-            
+        for i in range(len(smaps)):
+            assert torch.is_tensor(smaps[i]), "Each saliency map must be a Torch Tensor."
+            wsz = smaps[i].size()
+            w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
+            w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
+            ww.append(w)        # should we weight the raw maps ... hmmm
+            cm  += (w * self.weights[i])
+
+        r'''
+            Finish the combined saliency map to make it a weighted average.
+        '''
         cm  = cm / self.weight_sum
         cm  = cm.reshape(bn, self.output_size[0], self.output_size[1])
         
@@ -336,30 +339,93 @@ class CombineSaliencyMaps(nn.Module):
 
 # *******************************************************************************************************************         
 class SaliencyMap(object):
-
+    r'''
+        Given an input model and parameters, run the neural network and compute saliency maps for given images.
+        
+        input:             input image with shape of (batch size, 3, H, W)
+        
+        Parameters:
+        
+            model:          This should be a valid Torch neural network such as a ResNet.
+            layers:         A list of layers you wish to process given by name. If none, we can auto compute a selection.
+            maps_method:    How do we compute saliency for each activation map? Default: SMOEScaleMap
+            norm_method:    How do we post process normalize each saliency map? Default: norm.GaussNorm2D 
+                            This can also be norm.GammaNorm2D or norm.RangeNorm2D. 
+            output_size:    This is the standard 2D size for the saliency maps. Torch nn.functional.interpolate
+                            will be used to make each saliency map this size. Default [224,224]
+            weights:        The weight for each layer in the combined saliency map's weighted average.
+                            It should either be a list of floats or None.
+            resize_mode:    Is given to Torch nn.functional.interpolate. Whatever it supports will work here. 
+            do_relu:        Should we do a final clamp on values to set all negative values to 0?
+            
+        Will Return:
+        
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
+        
+    '''
     def __init__(self, model, layers, maps_method=SMOEScaleMap, norm_method=norm.GaussNorm2D,
-                 output_size=[224,224], weights=None, resize_mode='bilinear', magnitude=False, do_relu=False):
+                 output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False):
                 
-        assert isinstance(layers, list)
-        assert callable(maps_method)
-        assert callable(norm_method)
+        assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"
+        assert callable(maps_method), "Saliency map method must be a callable function or method."
+        assert callable(norm_method), "Normalization method must be a callable function or method."
         
         self.get_smap           = maps_method()
         self.get_norm           = norm_method()
-        self.layers             = layers
         self.model              = model
         
         self.activation_hooks   = []
         
-        for i,l in enumerate(layers):
-            h   = misc.CaptureLayerOutput(post_process=None)
-            _   = self.model._modules[l].register_forward_hook(h)
-            self.activation_hooks.append(h)
-            
-        self.combine_maps = CombineSaliencyMaps(output_size=output_size, map_num=len(layers), weights=weights, 
-                                                resize_mode=resize_mode, magnitude=magnitude, do_relu=do_relu)
+        r'''
+            Optionally, we can either define the layers we want or we can 
+            automatically pick all the ReLU layers.
+        '''
+        if layers is None:
+            assert weights is None, "If we auto select layers, we should auto compute weights too."
+            r'''
+                Pick all the ReLU layers. Set weights to 1 since the number of ReLUs is proportional
+                to how high up we are in the resulotion pyramid.
+                
+                For each we attach a hook to get the layer activations back after the 
+                network runs the data.
+                
+                NOTE: This is quantitativly untested. There are no ROAR/KARR scores yet.  
+            '''
+            self.layers     = []
+            weights         = []
+            for m in self.model.modules():
+                if isinstance(m, nn.ReLU):          # Maybe allow a user defined layer (e.g. nn.Conv)
+                    h   = misc.CaptureLayerOutput(post_process=None)
+                    _   = m.register_forward_hook(h)
+                    self.activation_hooks.append(h)
+                    weights.append(1.0)             # Maybe replace with a weight function
+                    self.layers.append(None)
+        else:
+            r'''
+                User defined layers. 
+                
+                For each we attach a hook to get the layer activations back after the 
+                network runs the data.
+            '''
+            self.layers = layers
+            for i,l in enumerate(layers):
+                h   = misc.CaptureLayerOutput(post_process=None)
+                _   = self.model._modules[l].register_forward_hook(h)
+                self.activation_hooks.append(h)
         
+        r'''     
+            This object will be used to combine all the saliency maps together after we compute them.
+        ''' 
+        self.combine_maps = CombineSaliencyMaps(output_size=output_size, map_num=len(weights), weights=weights, 
+                                                resize_mode=resize_mode, do_relu=do_relu)
         
+        r'''
+            Are we also computing the CAM map?
+        '''
         if isinstance(model,resnet.ResNet_FastCAM):
             self.do_fast_cam = True
         else:
@@ -368,15 +434,20 @@ class SaliencyMap(object):
     def __call__(self, input, grad_enabled=False):
         """
         Args:
-            input: input image with shape of (1, 3, H, W)
-            class_idx (int): class index for calculating Saliency Map.
-                    If not specified, the class index that makes the highest model prediction score will be used.
+            input:         input image with shape of (B, 3, H, W)
+            grad_enabled:  Set this to true if you need to compute grads when running the network. For instance, while training.    
+            
         Return:
-            mask: saliency map of the same spatial dimension with input
-            logit: model output
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
         """
 
-        # Don't compute grads if we do not need them
+        r'''
+            Don't compute grads if we do not need them. Cuts network compute time way down.
+        '''
         with torch.set_grad_enabled(grad_enabled):
 
             b, c, h, w      = input.size()
@@ -389,6 +460,9 @@ class SaliencyMap(object):
             
             saliency_maps   = []
             
+            r'''
+                Get the activation for each layer in our list. Then compute saliency and normalize.
+            '''
             for i,l in enumerate(self.layers):
             
                 activations         = self.activation_hooks[i].data
@@ -397,9 +471,15 @@ class SaliencyMap(object):
                 saliency_map        = self.get_norm(self.get_smap(activations)).view(b, u, v)
                                     
                 saliency_maps.append(saliency_map)
-                
+        
+        r'''
+            Combine each saliency map together into a single 2D saliency map.
+        '''
         combined_map, saliency_maps = self.combine_maps(saliency_maps)
         
+        r'''
+            If we computed a CAM, combine it with the forward only saliency map.
+        '''
         if self.do_fast_cam:
             combined_map = combined_map * cam_map
             
