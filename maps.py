@@ -58,6 +58,8 @@ import resnet
 class SMOEScaleMap(nn.Module):
     r'''
         Compute SMOE Scale on a 4D tensor. This acts as a standard PyTorch layer. 
+        
+        SMOE Scale is computed independantly for each batch item at each location x,y
     
         Input should be:
         
@@ -80,8 +82,8 @@ class SMOEScaleMap(nn.Module):
                
     def forward(self, x):
 
-        assert torch.is_tensor(x)
-        assert len(x.size()) > 2
+        assert torch.is_tensor(x), "input must be a Torch Tensor"
+        assert len(x.size()) > 2, "input must have at least three dims"
         
         
         r'''
@@ -109,11 +111,14 @@ class SMOEScaleMap(nn.Module):
 class StdMap(nn.Module):
     r'''
         Compute vanilla standard deviation on a 4D tensor. This acts as a standard PyTorch layer. 
+        
+        Standard Deviation is computed independantly for each batch item at each location x,y
     
         Input should be:
         
         (1) A tensor of size [batch x channels x height x width] 
         (2) Recommend a tensor with only positive values. (After a ReLU)
+            Any real value will work. 
         
         Output is a 3D tensor of size [batch x height x width]
     '''
@@ -123,8 +128,8 @@ class StdMap(nn.Module):
         
     def forward(self, x):
         
-        assert torch.is_tensor(x)
-        assert len(x.size()) > 2
+        assert torch.is_tensor(x), "input must be a Torch Tensor"
+        assert len(x.size()) > 2, "input must have at least three dims"
         
         x = torch.std(x,dim=1)
         
@@ -134,11 +139,14 @@ class StdMap(nn.Module):
 class MeanMap(nn.Module):
     r'''
         Compute vanilla mean on a 4D tensor. This acts as a standard PyTorch layer. 
+        
+        The Mean is computed independantly for each batch item at each location x,y
     
         Input should be:
         
         (1) A tensor of size [batch x channels x height x width] 
         (2) Recommend a tensor with only positive values. (After a ReLU)
+            Any real value will work. 
         
         Output is a 3D tensor of size [batch x height x width]
     '''
@@ -148,8 +156,8 @@ class MeanMap(nn.Module):
         
     def forward(self, x):
         
-        assert torch.is_tensor(x)
-        assert len(x.size()) > 2
+        assert torch.is_tensor(x), "input must be a Torch Tensor"
+        assert len(x.size()) > 2, "input must have at least three dims"
         
         x = torch.mean(x,dim=1)
         
@@ -159,11 +167,14 @@ class MeanMap(nn.Module):
 class MaxMap(nn.Module):
     r'''
         Compute vanilla mean on a 4D tensor. This acts as a standard PyTorch layer. 
+        
+        The Max is computed independantly for each batch item at each location x,y
     
         Input should be:
         
         (1) A tensor of size [batch x channels x height x width] 
         (2) Recommend a tensor with only positive values. (After a ReLU)
+            Any real value will work. 
         
         Output is a 3D tensor of size [batch x height x width]
     '''
@@ -173,8 +184,8 @@ class MaxMap(nn.Module):
         
     def forward(self, x):
         
-        assert torch.is_tensor(x)
-        assert len(x.size()) > 2
+        assert torch.is_tensor(x), "input must be a Torch Tensor"
+        assert len(x.size()) > 2, "input must have at least three dims"
         
         x = torch.max(x,dim=1)[0]
         
@@ -184,11 +195,14 @@ class MaxMap(nn.Module):
 class TruncNormalEntMap(nn.Module):
     r'''
         Compute truncated normal entropy on a 4D tensor. This acts as a standard PyTorch layer. 
+        
+        Truncated Normal Entropy is computed independantly for each batch item at each location x,y
     
         Input should be:
         
         (1) A tensor of size [batch x channels x height x width] 
-        (2) This should come BEFORE a ReLU and can range over any real value
+        (2) This should come BEFORE a ReLU and can range over any real value. 
+            Ideally it should have both positive and negative values. 
         
         Output is a 3D tensor of size [batch x height x width]
     '''
@@ -221,8 +235,8 @@ class TruncNormalEntMap(nn.Module):
     
     def forward(self, x):
         
-        assert torch.is_tensor(x)
-        assert len(x.size()) > 2
+        assert torch.is_tensor(x), "input must be a Torch Tensor"
+        assert len(x.size()) > 2, "input must have at least three dims"
  
         m   = torch.mean(x,   dim=1)
         s   = torch.std(x,    dim=1)
