@@ -339,7 +339,7 @@ def RangeNormalize(im):
         return im
 
 # *******************************************************************************************************************             
-def TileOutput(tensor, mask, image_list, mask_func):
+def TileOutput(tensor, mask, mask_func, image_list = []):
 
     assert torch.is_tensor(tensor)
     assert torch.is_tensor(mask)
