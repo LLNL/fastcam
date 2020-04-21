@@ -382,7 +382,8 @@ class SaliencyMap(object):
         
     '''
     def __init__(self, model, layers, maps_method=SMOEScaleMap, norm_method=norm.GaussNorm2D,
-                 output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False):
+                 output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False, cam_method='gradcampp',
+                 module_layer=None, expl_do_fast_cam=False, do_nonclass_map=False):
                 
         assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"
         assert callable(maps_method), "Saliency map method must be a callable function or method."
@@ -392,8 +393,13 @@ class SaliencyMap(object):
         self.get_norm           = norm_method()
         self.model              = model
         
-        self.activation_hooks   = []
+        r'''
+            This gives us access to more complex network modules than a standard ResNet if we need it.
+        '''
+        self.module_layer       = model if module_layer is None else module_layer
         
+        self.activation_hooks   = []
+                
         r'''
             Optionally, we can either define the layers we want or we can 
             automatically pick all the ReLU layers.
@@ -411,7 +417,7 @@ class SaliencyMap(object):
             '''
             self.layers     = []
             weights         = []
-            for m in self.model.modules():
+            for m in self.module_layer.modules():
                 if isinstance(m, nn.ReLU):          # Maybe allow a user defined layer (e.g. nn.Conv)
                     h   = misc.CaptureLayerOutput(post_process=None)
                     _   = m.register_forward_hook(h)
@@ -428,7 +434,7 @@ class SaliencyMap(object):
             self.layers = layers
             for i,l in enumerate(layers):
                 h   = misc.CaptureLayerOutput(post_process=None)
-                _   = self.model._modules[l].register_forward_hook(h)
+                _   = self.module_layer._modules[l].register_forward_hook(h)
                 self.activation_hooks.append(h)
         
         r'''     
@@ -440,10 +446,14 @@ class SaliencyMap(object):
         r'''
             Are we also computing the CAM map?
         '''
-        if isinstance(model,resnet.ResNet_FastCAM):
-            self.do_fast_cam = True
+        if isinstance(model,resnet.ResNet_FastCAM) or expl_do_fast_cam:
+            self.do_fast_cam        = True
+            self.do_nonclass_map    = do_nonclass_map
+            self.cam_method         = cam_method
         else:
-            self.do_fast_cam = False
+            self.do_fast_cam        = False
+            self.do_nonclass_map    = None
+            self.cam_method         = None
     
     def __call__(self, input, grad_enabled=False):
         """
@@ -464,11 +474,16 @@ class SaliencyMap(object):
         '''
         with torch.set_grad_enabled(grad_enabled):
 
-            b, c, h, w      = input.size()
+            r'''
+                Get the size, but we support lists here for certain special cases.
+            '''
+            b, c, h, w      = input[0].size() if isinstance(input,list) else input.size()
+            
+            
             self.model.eval()
             
             if self.do_fast_cam:
-                logit,cam_map   = self.model(input)
+                logit,cam_map   = self.model(input,method=self.cam_method)
             else:
                 logit           = self.model(input)
             
@@ -495,7 +510,11 @@ class SaliencyMap(object):
             If we computed a CAM, combine it with the forward only saliency map.
         '''
         if self.do_fast_cam:
-            combined_map = combined_map * cam_map
+            if self.do_nonclass_map:
+                combined_map = combined_map*(1.0 - cam_map)
+            else:
+                combined_map = combined_map * cam_map
+            
             
         return combined_map, saliency_maps, logit      
     

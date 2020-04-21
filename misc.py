@@ -169,17 +169,18 @@ class CaptureGradInput(CaptureLayerData):
                 
 # *******************************************************************************************************************
 # *******************************************************************************************************************             
-def LoadImageToTensor(file_name, device, norm=True):
+def LoadImageToTensor(file_name, device, norm=True, conv=cv2.COLOR_BGR2RGB, 
+                      mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     
     assert isinstance(file_name,str)
     assert isinstance(device,torch.device)
     
     toTensor    = transforms.ToTensor()
-    toNorm      = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    toNorm      = transforms.Normalize(mean,std)
     
     cv_im       = cv2.imread(file_name) 
     assert(cv_im is not None)
-    cv_im       = (cv2.cvtColor(cv_im,  cv2.COLOR_BGR2RGB) / 255.0).astype(np.float32)  # Put in a float image and range from 0 to 1
+    cv_im       = (cv2.cvtColor(cv_im,  conv) / 255.0).astype(np.float32)  # Put in a float image and range from 0 to 1
     if norm:
         pt_im       = toNorm(toTensor(cv_im))                                           # Do mean subtraction and divide by std. Then convert to Tensor object.
     else:
