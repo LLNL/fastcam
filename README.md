@@ -55,6 +55,13 @@ This will run our [Jupyter Notebook](https://github.com/LLNL/fastcam/blob/master
 These are our recommended installation steps:
 
 	git clone git@github.com:LLNL/fastcam.git 
+	
+or 
+
+	git clone https://github.com/LLNL/fastcam.git
+
+then do:
+	
 	cd fastcam 
 	python3 -m venv venv3 
 	source venv3/bin/activate

@@ -170,7 +170,8 @@ class CaptureGradInput(CaptureLayerData):
 # *******************************************************************************************************************
 # *******************************************************************************************************************             
 def LoadImageToTensor(file_name, device, norm=True, conv=cv2.COLOR_BGR2RGB, 
-                      mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+                      mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
+                      cv_process_list=[],pt_process_list=[]):
     
     assert isinstance(file_name,str)
     assert isinstance(device,torch.device)
@@ -180,11 +181,18 @@ def LoadImageToTensor(file_name, device, norm=True, conv=cv2.COLOR_BGR2RGB,
     
     cv_im       = cv2.imread(file_name) 
     assert(cv_im is not None)
+    
+    for l in cv_process_list:
+        cv_im = l(cv_im)
+
     cv_im       = (cv2.cvtColor(cv_im,  conv) / 255.0).astype(np.float32)  # Put in a float image and range from 0 to 1
+    pt_im       = toTensor(cv_im)
+    
+    for l in pt_process_list:
+        pt_im = l(pt_im)
+    
     if norm:
-        pt_im       = toNorm(toTensor(cv_im))                                           # Do mean subtraction and divide by std. Then convert to Tensor object.
-    else:
-        pt_im       = toTensor(cv_im)
+        pt_im       = toNorm(pt_im)                                           # Do mean subtraction and divide by std. Then convert to Tensor object.
     
     pt_im       = pt_im.reshape(1, 3, pt_im.size()[1], pt_im.size()[2])                 # Add an extra dimension so now its 4D
     pt_im       = pt_im.to(device)                                                      # Send to the GPU
