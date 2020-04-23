@@ -9,7 +9,7 @@
 
 
 import os
-from IPython.display import Image
+##from IPython.display import Image
 
 
 # Lets load the **PyTorch** Stuff.
@@ -28,14 +28,18 @@ warnings.filterwarnings('ignore')
 # Now we import the saliency libs for **this package**.
 
 # In[3]:
-
+print("import my stuff")
 
 import maps
+print("A")
 import misc
+print("B")
 import mask
+print("C")
 import norm
+print("D")
 import resnet
-
+print("DONE...")
 
 # ### Set Adjustable Parameters
 # This is where we can set some parameters like the image name and the layer weights.
@@ -88,7 +92,7 @@ os.makedirs(output_dir, exist_ok=True)
 # In[8]:
 
 
-Image(filename=load_image_name) 
+##Image(filename=load_image_name) 
 
 
 # ### Set Up Usual PyTorch Network Stuff
@@ -99,7 +103,7 @@ Image(filename=load_image_name)
 
 device      = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
+print(device)
 # Now we will create a model. Here we have a slightly customized ResNet that will only propagate backwards the last few layers. The customization is just a wrapper around the stock ResNet that comes with PyTorch. SMOE Scale computation does not need any gradients and GradCAM variants only need the last few layers. This will really speed things up, but don't try to train this network. You can train the regular ResNet if you need to do that. Since this network is just a wrapper, it will load any standard PyTorch ResNet training weights.  
 
 # In[10]:
@@ -108,7 +112,7 @@ device      = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model       = resnet.resnet50(pretrained=True)
 model       = model.to(device)
 
-
+print("Model Loaded")
 # ### Load Images
 # Lets load in our image into standard torch tensors. We will do a simple resize on it.
 
@@ -118,7 +122,7 @@ model       = model.to(device)
 in_tensor   = misc.LoadImageToTensor(load_image_name, device)
 in_tensor   = F.interpolate(in_tensor, size=(in_height, in_width), mode='bilinear', align_corners=False)
 
-
+print("Tensor in")
 # For illustration purposes, Lets also load a non-normalized version of the input.
 
 # In[12]:
@@ -127,7 +131,7 @@ in_tensor   = F.interpolate(in_tensor, size=(in_height, in_width), mode='bilinea
 raw_tensor  = misc.LoadImageToTensor(load_image_name, device, norm=False)
 raw_tensor  = F.interpolate(raw_tensor, size=(in_height, in_width), mode='bilinear', align_corners=False)
 
-
+print("raw tensor")
 # ### Set Up Saliency Objects
 
 # We create an object to create the saliency map given the model and layers we have selected. 
@@ -137,7 +141,7 @@ raw_tensor  = F.interpolate(raw_tensor, size=(in_height, in_width), mode='biline
 
 getSalmap   = maps.SaliencyMap(model, layers, output_size=[in_height,in_width],weights=weights)
 
-
+print("Sal Map Object")
 # **OPTIONAL:** We can run with a Gamma CDF based normalization which is a little slower, but gives slightly better ROAR/KARR scores.
 
 # In[14]:
@@ -154,7 +158,7 @@ getSalmap   = maps.SaliencyMap(model, layers, output_size=[in_height,in_width],w
 
 getMask     = mask.SaliencyMaskDropout(keep_percent = 0.1, scale_map=False)
 
-
+print("Mask object")
 # ### Run Saliency
 # Now lets run our input tensor image through the net and get the 2D saliency map back. 
 
@@ -163,7 +167,7 @@ getMask     = mask.SaliencyMaskDropout(keep_percent = 0.1, scale_map=False)
 
 cam_map,_,_ = getSalmap(in_tensor)
 
-
+print("Get cam map")
 # ### Visualize It
 # Take the images and create a nice tiled image to look at. This will created a tiled image of:
 # 
@@ -178,7 +182,7 @@ cam_map,_,_ = getSalmap(in_tensor)
 
 images      = misc.TileOutput(raw_tensor, cam_map, getMask)
 
-
+print("tile images")
 # We now put all the images into a nice grid for display.
 
 # In[18]:
@@ -186,7 +190,7 @@ images      = misc.TileOutput(raw_tensor, cam_map, getMask)
 
 images      = make_grid(torch.cat(images,0), nrow=5)
 
-
+print("made grid")
 # ... save and look at it. 
 
 # In[19]:
@@ -196,7 +200,7 @@ output_name = "{}.FASTCAM.jpg".format(save_prefix)
 output_path = os.path.join(output_dir, output_name)
 
 save_image(images, output_path)
-Image(filename=output_path) 
-
+##Image(filename=output_path) 
+print("done")
 
 # This image should look **exactly** like the one on the README.md on Github minus the text. 

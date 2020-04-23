@@ -45,14 +45,13 @@ Software released as LLNL-CODE-802426.
 See also: https://arxiv.org/abs/1911.11293
 '''
 
+import cv2
 import torch
 import torch.nn.functional as F
-import cv2
 import numpy as np
 import maps
 from torchvision import models, transforms
 from statistics import stdev # Built-in
-
 from gradcam import GradCAM
 from gradcam.utils import visualize_cam
 

@@ -49,10 +49,10 @@ See also: https://arxiv.org/abs/1911.11293
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 import norm
 import misc
 import resnet
+
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):

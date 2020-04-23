@@ -59,7 +59,7 @@ class ScoreMap(torch.autograd.Function):
     def forward(ctx, scores):
         
         ctx.save_for_backward(scores)
-        return torch.tensor(1)
+        return torch.tensor(1.0)
     
     @staticmethod
     def backward(ctx, grad):
