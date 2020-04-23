@@ -361,9 +361,9 @@ def TileOutput(tensor, mask, mask_func, image_list = []):
     hard_masked             = hard_masked.squeeze(0)
     masked                  = AlphaMask(tensor, mask).squeeze(0)
     masked                  = RangeNormalize(masked)
-    
-    image_list.append(torch.stack([tensor.squeeze().cpu(), heatmap, 
-                                   result, masked, hard_masked], 0))
+        
+    image_list.append(torch.stack([tensor.squeeze().cpu(), heatmap.cpu(), 
+                                   result.cpu(), masked.cpu(), hard_masked.cpu()], 0))
     
     return image_list
 
@@ -386,6 +386,12 @@ class DeNormalize:
 
         assert torch.is_tensor(tens)
         assert len(tens.size()) == 4
+              
+        if tens.device != self.std.device:
+            self.std = self.std.to(tens.device)
+            
+        if tens.device != self.mean.device:
+            self.mean = self.mean.to(tens.device)
         
         sz      = tens.size()
         

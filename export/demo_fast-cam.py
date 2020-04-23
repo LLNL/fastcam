@@ -383,8 +383,8 @@ cs_masked                  = misc.AlphaMask(raw_tensor, csmap).squeeze(0)
 cs_masked                  = misc.RangeNormalize(cs_masked)
 
 images = []
-images.append(torch.stack([raw_tensor.squeeze().cpu(), cs_heatmap, 
-                           cs_result, cs_masked, masked_tensor_raw[0,]], 0))
+images.append(torch.stack([raw_tensor.squeeze().cpu(), cs_heatmap.cpu(), 
+                           cs_result.cpu(), cs_masked.cpu(), masked_tensor_raw[0,].cpu()], 0))
 
 
 # Now, lets get the Grad-CAM++ saliency map only.
@@ -416,8 +416,8 @@ hard_masked_pp1         = hard_masked_pp1.squeeze(0)
 masked_pp1              = misc.AlphaMask(raw_tensor, mask_pp1.squeeze(0)).squeeze(0)
 masked_pp1              = misc.RangeNormalize(masked_pp1)
 
-images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp1, 
-                           result_pp1, masked_pp1, hard_masked_pp1], 0))
+images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp1.cpu(), 
+                           result_pp1.cpu(), masked_pp1.cpu(), hard_masked_pp1.cpu()], 0))
 
 
 # **Now we combine the Grad-CAM map and the SMOE Scale saliency maps** in the same way we would combine Grad-CAM with Guided Backprop.
@@ -440,8 +440,8 @@ hard_masked_pp2         = hard_masked_pp2.squeeze(0)
 masked_pp2              = misc.AlphaMask(raw_tensor, mask_pp2.squeeze(0)).squeeze(0)
 masked_pp2              = misc.RangeNormalize(masked_pp2)
 
-images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp2, 
-                           result_pp2, masked_pp2, hard_masked_pp2], 0))
+images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp2.cpu(), 
+                           result_pp2.cpu(), masked_pp2.cpu(), hard_masked_pp2.cpu()], 0))
 
 
 # Now we combine the Grad-CAM map and the SMOE Scale saliency maps but create a map of the **non-class** objects. These are salient locations that the network found interesting, but are not part of the object class. 
@@ -464,8 +464,8 @@ hard_masked_pp3         = hard_masked_pp3.squeeze(0)
 masked_pp3              = misc.AlphaMask(raw_tensor, mask_pp3.squeeze(0)).squeeze(0)
 masked_pp3              = misc.RangeNormalize(masked_pp3)
 
-images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp3, 
-                           result_pp3, masked_pp3, hard_masked_pp3], 0))
+images.append(torch.stack([raw_tensor.squeeze().cpu(), heatmap_pp3.cpu(), 
+                           result_pp3.cpu(), masked_pp3.cpu(), hard_masked_pp3.cpu()], 0))
 
 
 # We now put all the images into a nice grid for display.
