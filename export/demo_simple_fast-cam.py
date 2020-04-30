@@ -11,7 +11,7 @@
 import os
 import torch
 from torchvision import models
-##from IPython.display import Image
+from IPython.display import Image
 
 
 # Lets load things we need for **Grad-CAM**
@@ -72,7 +72,7 @@ os.makedirs(output_dir, exist_ok=True)
 # In[6]:
 
 
-##Image(filename=load_image_name) 
+Image(filename=load_image_name) 
 
 
 # Now we create a model in PyTorch and send it to our device.
@@ -233,7 +233,7 @@ output_name = "{}.CAM_PP.jpg".format(save_prefix)
 output_path = os.path.join(output_dir, output_name)
 
 save_image(images, output_path)
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # The top row is the SMOE Scale based saliency map. The second row is GradCAM++ only. Next we have the FastCAM output from combining the two. The last row is the non-class map showing salient regions that are not associated with the output class.

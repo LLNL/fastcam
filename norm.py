@@ -212,16 +212,16 @@ class GammaNorm2D(nn.Module):
         r'''
             For the gamma function: f(x + 1) = x * f(x)
         '''
-        gs      *= s    # Gamma(s + 1)
+        gs      *= s                  # Gamma(s + 1)
         R       = torch.reciprocal(gs) * torch.ones_like(x)
-        X       = x     # x.pow(1)
+        X       = x                   # x.pow(1)
         
         for k in range(iter):
-            gs      *= s + k + 1    # Gamma(s + k + 2)
+            gs      *= s + k + 1.0    # Gamma(s + k + 2)
             R       += X / gs 
-            X       = X*x           # x.pow(k+1)
+            X       = X*x             # x.pow(k+1)
         
-        gs      *= s + iter + 1     # Gamma(s + iter + 2)
+        gs      *= s + iter + 1.0     # Gamma(s + iter + 2)
         R       += X / gs
         
         return  L * R
@@ -240,14 +240,14 @@ class GammaNorm2D(nn.Module):
         
         z   = x + 1.0
         
-        zz  = z.pow(2)
+        zz  = z.pow(2.0)
         a   = 0.2 - torch.reciprocal(7.0*zz)
         b   = 1.0 - a/zz 
         c   = 1.0 + b/(3.0 * z)
         d   = 1.0 + c/(2.0 * z)
         e   = d/z 
         
-        e   = e + torch.reciprocal(x.pow(2))
+        e   = e + torch.reciprocal(x.pow(2.0))
      
         return e
 
@@ -288,7 +288,7 @@ class GammaNorm2D(nn.Module):
             NOTE: K gets smaller as log variance s increases.
         '''
         s3 = s - 3.0
-        rt = torch.sqrt(s3.pow(2) + 24.0 * s)
+        rt = torch.sqrt(s3.pow(2.0) + 24.0 * s)
         nm = 3.0 - s + rt
         dn = 12.0 * s
         k  = nm / dn + 0.0000001

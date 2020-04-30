@@ -383,7 +383,7 @@ class SaliencyMap(object):
     '''
     def __init__(self, model, layers, maps_method=SMOEScaleMap, norm_method=norm.GaussNorm2D,
                  output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False, cam_method='gradcampp',
-                 module_layer=None, expl_do_fast_cam=False, do_nonclass_map=False):
+                 module_layer=None, expl_do_fast_cam=False, do_nonclass_map=False, cam_each_map=False):
                 
         assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"
         assert callable(maps_method), "Saliency map method must be a callable function or method."
@@ -450,10 +450,12 @@ class SaliencyMap(object):
             self.do_fast_cam        = True
             self.do_nonclass_map    = do_nonclass_map
             self.cam_method         = cam_method
+            self.cam_each_map       = cam_each_map
         else:
             self.do_fast_cam        = False
             self.do_nonclass_map    = None
             self.cam_method         = None
+            self.cam_each_map       = None
     
     def __call__(self, input, grad_enabled=False):
         """
@@ -512,8 +514,17 @@ class SaliencyMap(object):
         if self.do_fast_cam:
             if self.do_nonclass_map:
                 combined_map = combined_map*(1.0 - cam_map)
-            else:
+                if self.cam_each_map:
+                    saliency_maps = saliency_maps.squeeze(0)
+                    saliency_maps = saliency_maps*(1.0 - cam_map)
+                    saliency_maps = saliency_maps.unsqueeze(0)
+            else:                
                 combined_map = combined_map * cam_map
+                
+                if self.cam_each_map:
+                    saliency_maps = saliency_maps.squeeze(0)
+                    saliency_maps = saliency_maps*cam_map
+                    saliency_maps = saliency_maps.unsqueeze(0)
             
             
         return combined_map, saliency_maps, logit      

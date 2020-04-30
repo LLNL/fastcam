@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 import torch
 from torchvision import models
-##from IPython.display import Image
+from IPython.display import Image
 
 
 # Lets load things we need for **Grad-CAM**
@@ -67,7 +67,7 @@ os.makedirs(output_dir, exist_ok=True)
 # In[5]:
 
 
-##Image(filename=load_image_name) 
+Image(filename=load_image_name) 
 
 
 # Now we create a model in PyTorch and send it to our device.
@@ -213,7 +213,7 @@ misc.SaveGrayTensorToImage(csmap, output_path)
 np_smaps    = misc.TensorToNumpyImages(smaps) # For later use, keep the Numpy version 
                                               # of the saliency maps.
 
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # Now lets get our individual saliency maps for each of the five layers and look at them. 
@@ -232,7 +232,7 @@ sal_img_file  = os.path.join(output_dir, output_name)
 
 save_image(images.unsqueeze(1), sal_img_file)
 
-##Image(filename=sal_img_file) 
+Image(filename=sal_img_file) 
 
 
 # ## LOVI and Heat Maps
@@ -259,7 +259,7 @@ output_name = "{}.HEAT.jpg".format(save_prefix)
 output_path = os.path.join(output_dir, output_name)
 cv2.imwrite(output_path, (shm_im*255.0).astype(np.uint8))
 
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # Let's create on overlay with our original image by alpha blending. 
@@ -275,7 +275,7 @@ output_name   = "{}.ALPHA_HEAT.jpg".format(save_prefix)
 output_path   = os.path.join(output_dir, output_name)
 cv2.imwrite(output_path, (ab_shm*255.0).astype(np.uint8)) 
 
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # Now we view our LOVI map with and without alpha blending of the original image. The LOVI image tells us which parts of the network are most active by layer. We range like a rainbow with violet/blue representing early layers and yellow/red representing later layers. White areas are active over all layers. 
@@ -287,7 +287,7 @@ output_name   = "{}.LOVI.jpg".format(save_prefix)
 output_path   = os.path.join(output_dir, output_name)
 cv2.imwrite(output_path, (lovi_im*255.0).astype(np.uint8))
 
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # You can see how this image is composed by looking again at all the individual saliency maps...
@@ -295,7 +295,7 @@ cv2.imwrite(output_path, (lovi_im*255.0).astype(np.uint8))
 # In[22]:
 
 
-##Image(filename=sal_img_file)
+Image(filename=sal_img_file)
 
 
 # In[23]:
@@ -307,7 +307,7 @@ output_name   = "{}.ALPHA_LOVI.jpg".format(save_prefix)
 output_path   = os.path.join(output_dir, output_name)
 cv2.imwrite(output_path, (ab_lovi*255.0).astype(np.uint8)) 
 
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # ## The Masked Image
@@ -347,7 +347,7 @@ masked_tensor = denorm(masked_tensor)
 output_name   = "{}.MASK.jpg".format(save_prefix)
 output_path   = os.path.join(output_dir, output_name)
 misc.SaveColorTensorToImage(masked_tensor, output_path)
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # ## Run With Grad-CAM++
@@ -485,7 +485,7 @@ output_name = "{}.CAM_PP.jpg".format(save_prefix)
 output_path = os.path.join(output_dir, output_name)
 
 save_image(images, output_path)
-##Image(filename=output_path) 
+Image(filename=output_path) 
 
 
 # The top row is the SMOE Scale based saliency map. The second row is GradCAM++ only. Next we have the FastCAM output from combining the two. The last row is the non-class map showing salient regions that are not associated with the output class.

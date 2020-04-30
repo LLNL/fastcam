@@ -47,6 +47,9 @@ See also: https://arxiv.org/abs/1911.11293
 import cv2
 import numpy as np
 import math
+import torch
+
+import misc
 
 # *******************************************************************************************************************
 class _Draw(object):
@@ -57,6 +60,10 @@ class _Draw(object):
     '''
     
     def __init__(self, shape, weights, color):
+        
+        # torch tensor will be callable
+        if callable(shape):
+            shape = [shape()[1], shape()[2], shape()[0]]
         
         assert isinstance(shape,tuple) or isinstance(shape,list), "Output shape should be a list or tuple"
         assert len(shape) == 3, "Output shape should be height x width x chan"
@@ -121,13 +128,19 @@ class HeatMap(_Draw):
         
         self.Cexp        = 1.0/math.exp(1.0)
 
-    def make(self, input_patches):
+    def make(self, input_patches, blend_img=None):
         r'''
             Input:
                 input_patches: A numpy array. It should be sized [height x width x channels]. Here channels is each saliency map.
             Returns:
                 A numpy array sized [height x width x 3].
         '''
+        if torch.is_tensor(input_patches):
+            input_patches = misc.TensorToNumpyImages(input_patches)
+        if torch.is_tensor(blend_img):
+            blend_img = misc.TensorToNumpyImages(blend_img)
+        
+        assert blend_img is None or isinstance(blend_img, np.ndarray), "Blend Image should be a numpy array or torch tensor"    
         assert isinstance(input_patches, np.ndarray), "Input should be a numpy array"
         assert len(input_patches.shape) == 3, "Input should be height x width x chan"
         assert input_patches.shape[0] == self.height, "Input should be height x width x chan"
@@ -159,7 +172,13 @@ class HeatMap(_Draw):
         self.HSV_img[:,:,1] = S
         self.HSV_img[:,:,2] = V
         
-        return cv2.cvtColor(self.HSV_img,  self.color)
+        img = cv2.cvtColor(self.HSV_img,  self.color)
+
+        if blend_img is not None:
+            img = cv2.resize(img, (blend_img.shape[0],blend_img.shape[1]))
+            return misc.AlphaBlend(img, blend_img)
+        else:
+            return img
 
 # *******************************************************************************************************************
 class LOVI(_Draw):        
@@ -187,14 +206,20 @@ class LOVI(_Draw):
         for c_i in range(self.chans): 
             self.pos_img[:,:,c_i]   = 1.0 - (float(c_i)/(self.fc))*y    
         
-    def make(self, input_patches):
+    def make(self, input_patches, blend_img=None):
         r'''
             Input:
                 input_patches: A numpy array. It should be sized [height x width x channels]. Here channels is each saliency map.
             Returns:
                 A numpy array sized [height x width x 3].
         '''
-        assert isinstance(input_patches, np.ndarray), "Input should be a numpy array"
+        if torch.is_tensor(input_patches):
+            input_patches = misc.TensorToNumpyImages(input_patches)
+        if torch.is_tensor(blend_img):
+            blend_img = misc.TensorToNumpyImages(blend_img)
+       
+        assert blend_img is None or isinstance(blend_img, np.ndarray), "Blend Image should be a numpy array or torch tensor"             
+        assert isinstance(input_patches, np.ndarray), "Input should be a numpy array or torch tensor"
         assert len(input_patches.shape) == 3, "Input should be height x width x chan"
         assert input_patches.shape[0] == self.height, "Input should be height x width x chan"
         assert input_patches.shape[1] == self.width, "Input should be height x width x chan"
@@ -219,6 +244,13 @@ class LOVI(_Draw):
         self.HSV_img[:,:,1] = 1.0 - (np.sum(patches,2)/(self.fc*np.amax(patches,2)) - self.frac)*(1.0/(1.0 - self.frac))
         self.HSV_img[:,:,2] = np.amax(patches, 2)
           
-        return cv2.cvtColor(self.HSV_img,  self.color)
+        img = cv2.cvtColor(self.HSV_img,  self.color)
+        
+        if blend_img is not None:
+            img = cv2.resize(img, (blend_img.shape[0],blend_img.shape[1]))
+            return misc.AlphaBlend(img, blend_img)
+        else:
+            return img
+            
 
         
