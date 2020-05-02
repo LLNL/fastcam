@@ -259,7 +259,7 @@ class GammaNorm2D(nn.Module):
         
         return k2
             
-    def _compute_ml_est(self, x, i=10):
+    def _compute_ml_est(self, x, i=10, eps=0.0000001):
         r'''
             Compute k and th parameters for the Gamma Probability Distribution. 
             
@@ -274,7 +274,7 @@ class GammaNorm2D(nn.Module):
         r'''
             avoid log(0)
         '''
-        x  = x + 0.0000001
+        x  = x + eps
         
         r'''
             Calculate s
@@ -291,7 +291,7 @@ class GammaNorm2D(nn.Module):
         rt = torch.sqrt(s3.pow(2.0) + 24.0 * s)
         nm = 3.0 - s + rt
         dn = 12.0 * s
-        k  = nm / dn + 0.0000001
+        k  = nm / dn + eps
 
         r'''
             Do i Newton-Raphson steps to get closer than 1.5%
@@ -306,7 +306,7 @@ class GammaNorm2D(nn.Module):
             This is because the Gamma function is a factorial function with support 
             for positive natural numbers (here we only support reals).
         '''
-        k   = torch.clamp(k, 0.0000001, 18.0)
+        k   = torch.clamp(k, eps, 18.0)
         
         th  = torch.reciprocal(k) * torch.mean(x,dim=1)
         

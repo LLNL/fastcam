@@ -52,7 +52,7 @@ import torch.nn.functional as F
 import norm
 import misc
 import resnet
-
+import math
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):
@@ -528,4 +528,104 @@ class SaliencyMap(object):
             
             
         return combined_map, saliency_maps, logit      
+
+# *******************************************************************************************************************     
+# *******************************************************************************************************************         
+class SaliencyVector(SaliencyMap):
+    r'''
+        Given an input model and parameters, run the neural network and compute saliency maps for given images.
+        
+        input:             input image with shape of (batch size, 3, H, W)
+        
+        Parameters:
+        
+            model:          This should be a valid Torch neural network such as a ResNet.
+            layers:         A list of layers you wish to process given by name. If none, we can auto compute a selection.
+            maps_method:    How do we compute saliency for each activation map? Default: SMOEScaleMap
+            norm_method:    How do we post process normalize each saliency map? Default: norm.GaussNorm2D 
+                            This can also be norm.GammaNorm2D or norm.RangeNorm2D. 
+            output_size:    This is the standard 2D size for the saliency maps. Torch nn.functional.interpolate
+                            will be used to make each saliency map this size. Default [224,224]
+            weights:        The weight for each layer in the combined saliency map's weighted average.
+                            It should either be a list of floats or None.
+            resize_mode:    Is given to Torch nn.functional.interpolate. Whatever it supports will work here. 
+            do_relu:        Should we do a final clamp on values to set all negative values to 0?
+            
+        Will Return:
+        
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
+            sal_location:   A tuple of x,y locations which are the most salienct in each image.
+            feature_vecs:   List of salient feature vectors. Each list item is assocaited with each layer in the layers argument.
+        
+    '''
+    def __init__(self, model, layers, **kwargs):
+                
+        super(SaliencyVector, self).__init__(model, layers, **kwargs)
+    
+    def __call__(self, input, grad_enabled=False):
+        
+        """
+        Args:
+            input:         input image with shape of (B, 3, H, W)
+            grad_enabled:  Set this to true if you need to compute grads when running the network. For instance, while training.    
+            
+        Return:
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
+            sal_location:   A tuple of x,y locations which are the most salienct in each image.
+        feature_vecs:   List of salient feature vectors. Each list item is assocaited with each layer in the layers argument.asssssssssssssssssssssssssssssssssssssQQQQQQQQQQQQQQQQQQ
+        """
+
+        r'''
+            Call the base __call__  method from the base class first to get saliency maps.
+        '''
+        combined_map, saliency_maps, logit  = super(SaliencyVector, self).__call__(input, grad_enabled)
+        
+        sz              = combined_map.size()
+        
+        combined_map    = combined_map.reshape(sz[0],sz[1]*sz[2])
+        
+        r'''
+            Get the location x,y expressed as one vector. 
+        '''
+        sal_loc         = torch.argmax(combined_map,dim=1)
+        
+        r'''
+            Get the actual location by offseting the y place size.
+        '''
+        sal_y           = sal_loc//sz[1]
+        sal_x           = sal_loc%sz[1]
+        
+        r'''
+            Get each activation layer again from the layer hooks. 
+        '''
+        feature_vecs = []
+        for i,l in enumerate(self.layers):
+                    
+            activations       = self.activation_hooks[i].data
+            b, k, v, u        = activations.size()              # Note: v->y and u->x
+            
+            r'''
+                Compute new x,y location based on the layers size.
+            '''
+            loc_x = math.floor((v/sz[2])*float(sal_x))    
+            loc_y = math.floor((u/sz[1])*float(sal_y))   
+            loc   = loc_y*u + loc_x
+            
+            r'''
+                Get feature vectors k at location loc from all batches b.
+            '''
+            feature_vecs.append(activations.permute(0,2,3,1).reshape(b,v*u,k)[:,loc,:])
+        
+        combined_map    = combined_map.reshape(sz[0],sz[1],sz[2])
+        sal_location    = (sal_x,sal_y)
+        
+        return combined_map, saliency_maps, logit, sal_location, feature_vecs       
     
