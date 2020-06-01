@@ -147,6 +147,29 @@ class CaptureLayerInput(CaptureLayerData):
                 self.data = [n.data for n in i]
             else:
                 self.data = i.data[self.array_item]
+
+# *******************************************************************************************************************            
+class CaptureLayerPreInput(CaptureLayerData):
+    
+    def __init__(self, device=None, array_item=None):
+        
+        assert(isinstance(array_item, int) or array_item is None)
+        
+        if isinstance(array_item, int):
+            assert array_item >= 0
+        
+        self.array_item = array_item
+        
+        super(CaptureLayerPreInput, self).__init__(device, post_process=None)     
+        
+    def __call__(self, m, i):
+        
+        if self.device is None or self.device == o.device:
+            
+            if self.array_item is None:
+                self.data = [n.data for n in i]
+            else:
+                self.data = i.data[self.array_item]
                 
 # *******************************************************************************************************************            
 class CaptureGradInput(CaptureLayerData):
