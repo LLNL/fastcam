@@ -54,6 +54,7 @@ from torchvision import models, transforms
 from statistics import stdev # Built-in
 from gradcam import GradCAM
 from gradcam.utils import visualize_cam
+from matplotlib import pyplot as plt
 
 # ******************************************************************************************************************* 
 def from_gpu(data):
@@ -388,6 +389,31 @@ def TileOutput(tensor, mask, mask_func, image_list = []):
                                    result.cpu(), masked.cpu(), hard_masked.cpu()], 0))
     
     return image_list
+
+# *******************************************************************************************************************
+def show_hist(tens,file_name=None, max_range=256):
+    
+
+    '''
+    Create histogram of pixel values and display.
+    '''
+    
+    tens = RangeNormalize(tens) * float(max_range)
+    
+    img  = tens.cpu().detach().numpy()
+    
+    hist,bins = np.histogram(img.flatten(),max_range,[0,max_range])
+    cdf = hist.cumsum()
+    cdf_normalized = cdf * float(hist.max()) / cdf.max()
+    plt.plot(cdf_normalized, color = 'b')
+    plt.hist(img.flatten(),max_range,[0,max_range], color = 'r')
+    plt.xlim([0,max_range])
+    plt.legend(('cdf','histogram'), loc = 'upper left')
+    
+    if file_name is not None:
+        plt.savefig(file_name)
+    
+    plt.show()     
 
 # *******************************************************************************************************************             
 class DeNormalize:
