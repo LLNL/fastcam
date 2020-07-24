@@ -486,7 +486,7 @@ class SaliencyMap(object):
         
     '''
     def __init__(self, model, layers, maps_method=SMOEScaleMap, norm_method=norm.GaussNorm2D,
-                 output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False, cam_method='gradcampp',
+                 output_size=[224,224], weights=None, resize_mode='bilinear', do_relu=False, cam_method='gradcam',
                  module_layer=None, expl_do_fast_cam=False, do_nonclass_map=False, cam_each_map=False):
                 
         assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"

@@ -149,7 +149,7 @@ class ResNet_FastCAM(models.ResNet):
 
         return x
 
-    def forward(self, x, class_idx=None, method='gradcampp', retain_graph=False):
+    def forward(self, x, class_idx=None, method='gradcam', retain_graph=False):
         r'''
             Call forward on the input x and return saliency map and logits. 
             
