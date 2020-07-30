@@ -218,7 +218,8 @@ class ResNet_FastCAM(models.ResNet):
             r'''
                 Zero out grads and then run backwards. 
                 
-                NOTE: This will only run backwards to the average pool layer then stop.
+                NOTE:     This will only run backwards to the average pool layer then stop.
+                          This is because we have set torch.set_grad_enabled(False) for all other layers. 
             '''
             self.zero_grad()
             score_end.backward(retain_graph=retain_graph)
@@ -284,8 +285,8 @@ class ResNet_FastCAM(models.ResNet):
 # *******************************************************************************************************************
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     
-    assert isinstance(pretrained,bool)
-    assert isinstance(progress,bool)
+    assert isinstance(pretrained, bool)
+    assert isinstance(progress, bool)
     
     model = ResNet_FastCAM(block, layers, **kwargs)
     

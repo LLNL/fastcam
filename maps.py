@@ -46,9 +46,12 @@ Software released as LLNL-CODE-802426.
 See also: https://arxiv.org/abs/1911.11293
 '''
 
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 import norm
 import misc
 import resnet
@@ -732,4 +735,195 @@ class SaliencyVector(SaliencyMap):
         sal_location    = (sal_x,sal_y)
         
         return combined_map, saliency_maps, logit, sal_location, feature_vecs       
+      
+# *******************************************************************************************************************         
+# *******************************************************************************************************************         
+class SaliencyModel(nn.Module):
+    r'''
+        Given an input model and parameters, run the neural network and compute saliency maps for given images.
+        
+        This version will run as a regular batch on a mutli-GPU machine. It will eventually replace SaliencyMap. 
+        
+        input:             input image with shape of (batch size, 3, H, W)
+        
+        Parameters:
+        
+            model:          This should be a valid Torch neural network such as a ResNet.
+            layers:         A list of layers you wish to process given by name. If none, we can auto compute a selection.
+            maps_method:    How do we compute saliency for each activation map? Default: SMOEScaleMap
+            norm_method:    How do we post process normalize each saliency map? Default: norm.GaussNorm2D 
+                            This can also be norm.GammaNorm2D or norm.RangeNorm2D. 
+            output_size:    This is the standard 2D size for the saliency maps. Torch nn.functional.interpolate
+                            will be used to make each saliency map this size. Default [224,224]
+            resize_mode:    Is given to Torch nn.functional.interpolate. Whatever it supports will work here. 
+            do_relu:        Should we do a final clamp on values to set all negative values to 0?
+            
+        Will Return:
+        
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
+        
+    '''
+    def __init__(self, model, layers=None, maps_method=SMOEScaleMap, norm_method=norm.GammaNorm2D,
+                 output_size=[224,224], weights=None, auto_layer=nn.ReLU, resize_mode='bilinear', 
+                 do_relu=False, cam_method='gradcam', module_layer=None, expl_do_fast_cam=False, 
+                 do_nonclass_map=False, cam_each_map=False):
+        
+        print(type(auto_layer))
+        
+        assert isinstance(model, nn.Module), "model must be a valid PyTorch module"
+        assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"        
+        assert callable(maps_method), "Saliency map method must be a callable function or method."
+        assert callable(norm_method), "Normalization method must be a callable function or method."
+        assert isinstance(auto_layer(), nn.Module), "Auto layer if used must be a type for nn.Module such as nn.ReLU."
+            
+        super(SaliencyModel, self).__init__()
+        
+        self.get_smap           = maps_method()
+        self.get_norm           = norm_method()
+        self.model              = model
+        self.layers             = layers
+        self.auto_layer         = auto_layer
+        
+        r'''
+            If we are auto selecting layers, count how many we have and create an empty layer list of the right size.
+            Later, this will make us compatible with enumerate(self.layers)
+        '''
+        if self.layers is None:
+            self.auto_layers    = True
+            map_num             = 0
+            weights             = None
+            self.layers         = []
+            for m in self.model.modules():
+                if isinstance(m, self.auto_layer):          
+                    map_num += 1
+                    self.layers.append(None)
+        else:
+            map_num             = len(self.layers)
+            self.auto_layers    = False
+                    
+        r'''     
+            This object will be used to combine all the saliency maps together after we compute them.
+        ''' 
+        self.combine_maps       = CombineSaliencyMaps(output_size=output_size, map_num=map_num, weights=None, 
+                                                      resize_mode=resize_mode, do_relu=do_relu)
+        
+        r'''
+            Are we also computing the CAM map?
+        '''
+        if isinstance(model, resnet.ResNet_FastCAM) or expl_do_fast_cam:
+            self.do_fast_cam        = True
+            self.do_nonclass_map    = do_nonclass_map
+            self.cam_method         = cam_method
+            self.cam_each_map       = cam_each_map
+        else:
+            self.do_fast_cam        = False
+            self.do_nonclass_map    = None
+            self.cam_method         = None
+            self.cam_each_map       = None
     
+    def __call__(self, input, grad_enabled=False):
+        """
+        Args:
+            input:         input image with shape of (B, 3, H, W)
+            grad_enabled:  Set this to true if you need to compute grads when running the network. For instance, while training.    
+            
+        Return:
+            combined_map:   [Batch x output height x output width] set of 2D saliency maps combined from each layer 
+                            we compute from and combined with a CAM if we computed one. 
+            saliency_maps:  A list [number of layers size] containing each saliency map [Batch x output height x output width].
+                            These will have been resized from their orginal layer size.  
+            logit:          The output neural network logits. 
+        """
+        
+        r'''
+            We set up the hooks each iteration. This is needed when running in a multi GPU version where this module is split out
+            post __init__. 
+        '''
+        self.activation_hooks       = []
+
+        if self.auto_layers:
+            r'''
+                Auto defined layers. Here we will process all layers of a certain type as defined by the use.
+                This might commonly be all ReLUs or all Conv layers.
+            '''
+            for m in self.model.modules():
+                if isinstance(m, self.auto_layer):      # Maybe allow a user defined layer (e.g. nn.Conv)
+                    m._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is avialable, but not everyone may be patched
+                    h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
+                    _   = m.register_forward_hook(h)
+                    self.activation_hooks.append(h)
+                    
+        else:
+            r'''
+                User defined layers. 
+                
+                For each we attach a hook to get the layer activations back after the 
+                network runs the data.
+            '''
+            for i,l in enumerate(self.layers):
+                self.model._modules[l]._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is aviable, but not everyone may be patched
+                h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
+                _   = self.model._modules[l].register_forward_hook(h)
+                self.activation_hooks.append(h)
+                    
+        r'''
+            Don't compute grads if we do not need them. Cuts network compute time way down.
+        '''
+        with torch.set_grad_enabled(grad_enabled):
+
+            r'''
+                Get the size, but we support lists here for certain special cases.
+            '''
+            b, c, h, w      = input[0].size() if isinstance(input,list) else input.size()
+            
+            self.model.eval()
+            
+            if self.do_fast_cam:
+                logit,cam_map   = self.model(input, method=self.cam_method)
+            else:
+                logit           = self.model(input)
+            
+            saliency_maps   = []
+            
+            r'''
+                Get the activation for each layer in our list. Then compute saliency and normalize.
+            '''
+            for i,l in enumerate(self.layers):
+            
+                activations         = self.activation_hooks[i].data
+                b, k, u, v          = activations.size()
+                activations         = F.relu(activations)
+                saliency_map        = self.get_norm(self.get_smap(activations)).view(b, u, v)
+                                    
+                saliency_maps.append(saliency_map)
+        
+        r'''
+            Combine each saliency map together into a single 2D saliency map. This is outside the 
+            set_grad_enabled loop since it might need grads if doing FastCAM.  
+        '''
+        combined_map, saliency_maps = self.combine_maps(saliency_maps)
+        
+        r'''
+            If we computed a CAM, combine it with the forward only saliency map.
+        '''
+        if self.do_fast_cam:
+            if self.do_nonclass_map:
+                combined_map = combined_map*(1.0 - cam_map)
+                if self.cam_each_map:
+                    saliency_maps = saliency_maps.squeeze(0)
+                    saliency_maps = saliency_maps*(1.0 - cam_map)
+                    saliency_maps = saliency_maps.unsqueeze(0)
+            else:                
+                combined_map = combined_map * cam_map
+                
+                if self.cam_each_map:
+                    saliency_maps = saliency_maps.squeeze(0)
+                    saliency_maps = saliency_maps*cam_map
+                    saliency_maps = saliency_maps.unsqueeze(0)
+            
+            
+        return combined_map, saliency_maps, logit
