@@ -771,9 +771,7 @@ class SaliencyModel(nn.Module):
                  output_size=[224,224], weights=None, auto_layer=nn.ReLU, resize_mode='bilinear', 
                  do_relu=False, cam_method='gradcam', module_layer=None, expl_do_fast_cam=False, 
                  do_nonclass_map=False, cam_each_map=False):
-        
-        print(type(auto_layer))
-        
+                
         assert isinstance(model, nn.Module), "model must be a valid PyTorch module"
         assert isinstance(layers, list) or layers is None, "Layers must be a list of layers or None"        
         assert callable(maps_method), "Saliency map method must be a callable function or method."
