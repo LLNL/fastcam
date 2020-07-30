@@ -461,6 +461,8 @@ class CombineSaliencyMaps(nn.Module):
 # *******************************************************************************************************************         
 class SaliencyMap(object):
     r'''
+        >>>Depricated<<<
+    
         Given an input model and parameters, run the neural network and compute saliency maps for given images.
         
         input:             input image with shape of (batch size, 3, H, W)
@@ -849,8 +851,8 @@ class SaliencyModel(nn.Module):
                 This might commonly be all ReLUs or all Conv layers.
             '''
             for m in self.model.modules():
-                if isinstance(m, self.auto_layer):      # Maybe allow a user defined layer (e.g. nn.Conv)
-                    m._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is avialable, but not everyone may be patched
+                if isinstance(m, self.auto_layer):      
+                    m._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
                     h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
                     _   = m.register_forward_hook(h)
                     self.activation_hooks.append(h)
@@ -863,7 +865,7 @@ class SaliencyModel(nn.Module):
                 network runs the data.
             '''
             for i,l in enumerate(self.layers):
-                self.model._modules[l]._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is aviable, but not everyone may be patched
+                self.model._modules[l]._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
                 h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
                 _   = self.model._modules[l].register_forward_hook(h)
                 self.activation_hooks.append(h)
@@ -917,11 +919,11 @@ class SaliencyModel(nn.Module):
                     saliency_maps = saliency_maps.unsqueeze(0)
             else:                
                 combined_map = combined_map * cam_map
-                
                 if self.cam_each_map:
                     saliency_maps = saliency_maps.squeeze(0)
                     saliency_maps = saliency_maps*cam_map
                     saliency_maps = saliency_maps.unsqueeze(0)
             
-            
         return combined_map, saliency_maps, logit
+    
+    

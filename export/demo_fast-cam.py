@@ -52,7 +52,11 @@ import misc
 input_image_name    = "ILSVRC2012_val_00049934.224x224.png"     # Our input image to process 
 output_dir          = 'outputs'                                 # Where to save our output images
 input_dir           = 'images'                                  # Where to load our inputs from
-weights             = [0.18, 0.15, 0.37, 0.4, 0.72]             # Our saliency layer weights 
+
+weights             = [1.0, 1.0, 1.0, 1.0, 1.0]                 # Equal Weights work best 
+                                                                # when using with GradCAM
+    
+#weights             = [0.18, 0.15, 0.37, 0.4, 0.72]            # Our saliency layer weights 
                                                                 # From paper:
                                                                 # https://arxiv.org/abs/1911.11293
 
@@ -166,7 +170,7 @@ with torch.set_grad_enabled(False):
 # In[11]:
 
 
-getSmap     = maps.SMOEScaleMap() 
+getSmap     = maps.SMOEScaleMap()
 
 
 # This next object will normalize the saliency maps from 0 to 1 using a Gaussian CDF squashing function.
@@ -174,7 +178,7 @@ getSmap     = maps.SMOEScaleMap()
 # In[12]:
 
 
-getNorm     = norm.GaussNorm2D()  
+getNorm     = norm.GammaNorm2D()  
 
 
 # Now we will create an object to combine the five saliency maps from each scale into one.
