@@ -47,11 +47,17 @@ import resnet
 
 
 input_image_name    = "ILSVRC2012_val_00049934.224x224.png"     # Our input image to process 
+
 output_dir          = 'outputs'                                 # Where to save our output images
 input_dir           = 'images'                                  # Where to load our inputs from
-weights             = [0.18, 0.15, 0.37, 0.4, 0.72]             # Our saliency layer weights 
+
+weights             = [1.0, 1.0, 1.0, 1.0, 1.0]                 # Equal Weights work best 
+                                                                # when using with GradCAM
+    
+#weights             = [0.18, 0.15, 0.37, 0.4, 0.72]            # Our saliency layer weights 
                                                                 # From paper:
                                                                 # https://arxiv.org/abs/1911.11293
+        
 in_height           = 224                                       # Size to scale input image to
 in_width            = 224                                       # Size to scale input image to
 
@@ -107,8 +113,8 @@ in_tensor   = F.interpolate(in_tensor, size=(in_height, in_width), mode='bilinea
 # In[10]:
 
 
-get_salmap  = maps.SaliencyMap(model, layers, output_size=[in_height,in_width],
-                               weights=weights)
+get_salmap  = maps.SaliencyModel(model, layers, output_size=[in_height,in_width],
+                                 weights=weights)
 
 
 # Lets got ahead and run the network and get back the saliency map 
@@ -239,6 +245,12 @@ Image(filename=output_path)
 # The top row is the SMOE Scale based saliency map. The second row is GradCAM++ only. Next we have the FastCAM output from combining the two. The last row is the non-class map showing salient regions that are not associated with the output class.
 # 
 # This image should look **exactly** like the one on the README.md on Github minus the text. 
+
+# In[ ]:
+
+
+
+
 
 # In[ ]:
 
