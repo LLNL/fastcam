@@ -47,16 +47,17 @@ See also: https://arxiv.org/abs/1911.11293
 '''
 
 from collections import OrderedDict
+import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import norm
-from . import misc
-from . import resnet
+import norm
+import misc
+import resnet
 
-import math
+
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):
