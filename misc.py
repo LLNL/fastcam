@@ -49,7 +49,9 @@ import cv2
 import torch
 import torch.nn.functional as F
 import numpy as np
-from . import maps
+
+import maps
+
 from torchvision import models, transforms
 from statistics import stdev # Built-in
 from gradcam import GradCAM
@@ -117,7 +119,7 @@ class CaptureGradOutput(CaptureLayerData):
         
     def __call__(self, m, i, o):
         
-        if self.device is None or self.device == o.device:
+        if self.device is None or self.device == o[0].device:
             
             # o seems to usualy be size 1
             
@@ -181,7 +183,7 @@ class CaptureGradInput(CaptureLayerData):
         
     def __call__(self, m, i, o):
         
-        if self.device is None or self.device == i.device:
+        if self.device is None or self.device == i[0].device:
             
              # i seems to usualy be size 1
             

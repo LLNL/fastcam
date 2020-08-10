@@ -49,7 +49,7 @@ import numpy as np
 import math
 import torch
 
-from . import misc
+import misc
 
 # *******************************************************************************************************************
 class _Draw(object):

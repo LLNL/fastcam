@@ -47,16 +47,17 @@ See also: https://arxiv.org/abs/1911.11293
 '''
 
 from collections import OrderedDict
+import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import norm
-from . import misc
-from . import resnet
+import norm
+import misc
+import resnet
 
-import math
+
 
 # *******************************************************************************************************************
 class SMOEScaleMap(nn.Module):
@@ -441,6 +442,7 @@ class CombineSaliencyMaps(nn.Module):
             wsz = smaps[i].size()
             w   = smaps[i].reshape(wsz[0], 1, wsz[1], wsz[2])
             w   = nn.functional.interpolate(w, size=self.output_size, mode=self.resize_mode, align_corners=False) 
+                       
             ww.append(w)        # should we weight the raw maps ... hmmm
             cm  += (w * self.weights[i])
 
@@ -448,6 +450,7 @@ class CombineSaliencyMaps(nn.Module):
             Finish the combined saliency map to make it a weighted average.
         '''
         cm  = cm / self.weight_sum
+                
         cm  = cm.reshape(bn, self.output_size[0], self.output_size[1])
         
         ww  = torch.stack(ww,dim=1)
@@ -690,7 +693,7 @@ class SaliencyVector(SaliencyMap):
                             These will have been resized from their orginal layer size.  
             logit:          The output neural network logits. 
             sal_location:   A tuple of x,y locations which are the most salienct in each image.
-        feature_vecs:   List of salient feature vectors. Each list item is assocaited with each layer in the layers argument.asssssssssssssssssssssssssssssssssssssQQQQQQQQQQQQQQQQQQ
+            feature_vecs:   List of salient feature vectors. Each list item is assocaited with each layer in the layers argument.
         """
 
         r'''
