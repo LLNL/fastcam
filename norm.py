@@ -334,7 +334,7 @@ class GammaNorm2D(nn.Module):
         r'''
             offset from just a little more than 0, keeps k sane
         '''
-        x       = x - torch.min(x,dim=1)[0] + 0.0000001
+        x       = x - torch.min(x,dim=1)[0].reshape(s0,1) + 0.0000001
         
         k,th    = self._compute_ml_est(x)
         
