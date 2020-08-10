@@ -50,7 +50,7 @@ from torchvision import models
 from torchvision.models.utils import load_state_dict_from_url
 import torch.nn.functional as F
 import torch
-import norm
+from . import norm
 
 # *******************************************************************************************************************       
 class ScoreMap(torch.autograd.Function):
@@ -256,6 +256,13 @@ class ResNet_FastCAM(models.ResNet):
                     Standard GradCAM Computation
                 '''
                 alpha               = gradients.view(b, k, -1).mean(2)
+                weights             = alpha.view(b, k, 1, 1)
+            elif method=='xgradcam':
+                r'''
+                    XGradCAM Model
+                '''
+                alpha               = (gradients*activations).view(b, k, -1).sum(2)
+                alpha               = alpha / (activations.view(b, k, -1).sum(2) + 1e-6)
                 weights             = alpha.view(b, k, 1, 1)
             else:
                 r'''

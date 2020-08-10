@@ -52,9 +52,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import norm
-import misc
-import resnet
+from . import norm
+from . import misc
+from . import resnet
+
 import math
 
 # *******************************************************************************************************************

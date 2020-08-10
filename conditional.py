@@ -48,7 +48,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import maps
+from . import maps
 
 class ConditionalSaliencyMaps(maps.CombineSaliencyMaps): 
     r'''

@@ -338,6 +338,9 @@ class GammaNorm2D(nn.Module):
         
         k,th    = self._compute_ml_est(x)
         
+        k       = k.reshape(s0,1)
+        th      = th.reshape(s0,1)
+        
         '''
             Squash with a Gamma CDF for range within 0 to 1.
         '''
