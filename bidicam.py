@@ -50,6 +50,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from collections import OrderedDict
+import math
 import numpy as np
 
 import maps
@@ -100,7 +101,7 @@ class BiDiCAM(nn.Module):
         self.interp_pooling = interp_pooling
         self.auto_layer     = 'BatchNorm2d'
                 
-        self.getNorm        = norm.GammaNorm2D()
+        self.getNorm        = norm.GaussNorm2D() #norm.GammaNorm2D()
         
         if layers is None:
             self.auto_layers    = True
