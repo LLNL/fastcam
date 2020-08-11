@@ -93,10 +93,12 @@ class BiDiCAM(nn.Module):
         
         super(BiDiCAM, self).__init__()
         
-        assert(isinstance(layers, list) or layers is None) 
-        assert(isinstance(grad_pooling, str) or grad_pooling is None)
-        assert(callable(actv_method))
-        assert(callable(grad_method))
+        assert isinstance(layers, list) or layers is None 
+        assert isinstance(grad_pooling, str) or grad_pooling is None 
+        assert callable(actv_method)
+        assert callable(grad_method) 
+        #assert not(use_GradCAM and do_first_forward)
+        
         
         self.getActvSmap        = actv_method()
         self.getGradSmap        = grad_method()
@@ -212,7 +214,7 @@ class BiDiCAM(nn.Module):
                     m._forward_hooks    = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
                     m._backward_hooks   = OrderedDict()
                     
-                    if self.do_first_forward and len(self.activation_hooks) > 0:
+                    if self.do_first_forward and len(self.activation_hooks) > 0 and not self.use_GradCAM:
                         pass
                     else:
                         h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
@@ -227,7 +229,7 @@ class BiDiCAM(nn.Module):
                 self.model._modules[l]._forward_hooks    = OrderedDict()
                 self.model._modules[l]._backward_hooks   = OrderedDict()
                 
-                if self.do_first_forward and i>0:
+                if self.do_first_forward and i>0 and not self.use_GradCAM:
                     pass
                 else:
                     h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
@@ -264,7 +266,7 @@ class BiDiCAM(nn.Module):
                 gradients           = self.gradient_hooks[i].data
                 gb, gk, gu, gv      = gradients.size()
                 
-                if self.do_first_forward and i>0:
+                if self.do_first_forward and i>0 and not self.use_GradCAM:
                     pass
                 else:
                     activations         = self.activation_hooks[i].data
@@ -293,7 +295,7 @@ class BiDiCAM(nn.Module):
                     l                   = float(len(self.layers)) - float(i)
                     n                   = math.log2(l)
                     d                   = math.log2(float(len(self.layers)))  
-                    ratio               = 1.0 - n/d          
+                    ratio               = 1.0 - n/d         
                     grad_map            = self._proc_salmap(gradients, self.getGradSmap, gb, gu, gv)
                     gradients           = ratio*cam_map + (1.0 - ratio)*grad_map
                 else:
