@@ -915,12 +915,7 @@ class SaliencyModel(nn.Module):
             Combine each saliency map together into a single 2D saliency map. This is outside the 
             set_grad_enabled loop since it might need grads if doing FastCAM.  
         '''
-        
         combined_map, saliency_maps = self.combine_maps(saliency_maps)
-        
-        # FUDGE TO RUN CAM ONLY
-        #combined_map    = torch.ones_like(cam_map)
-        #saliency_maps   = torch.ones_like(cam_map)
         
         r'''
             If we computed a CAM, combine it with the forward only saliency map.
