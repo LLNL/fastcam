@@ -52,11 +52,11 @@ import torch.nn.functional as F
 from collections import OrderedDict
 import numpy as np
 
-import maps
-import misc
-import norm
-import misc
-import resnet
+from . import maps
+from . import misc
+from . import norm
+from . import misc
+from . import resnet
 
 # *******************************************************************************************************************       
 class ScoreMap(torch.autograd.Function):
@@ -81,7 +81,7 @@ class BiDiCAM(nn.Module):
     Bi Di Bi Di Bi Di Nice shootin' Buck!
     """
     def __init__(self, model, layers=None, actv_method=maps.SMOEScaleMap, grad_method=maps.SMOEScaleMap, grad_pooling='mag', interp_pooling='nearest',
-                 use_GradCAM=False, num_classes=1000):
+                 use_GradCAM=False, do_first_forward=False, num_classes=1000):
         
         super(BiDiCAM, self).__init__()
         
@@ -90,17 +90,17 @@ class BiDiCAM(nn.Module):
         assert(callable(actv_method))
         assert(callable(grad_method))
         
-        self.getActvSmap    = actv_method()
-        self.getGradSmap    = grad_method()
-        self.layers         = layers
-        self.model          = model
-        self.grad_pooling   = grad_pooling
-        self.num_classes    = num_classes
-        self.use_GradCAM    = use_GradCAM
-        self.interp_pooling = interp_pooling
-        self.auto_layer     = 'BatchNorm2d'
-                
-        self.getNorm        = norm.GammaNorm2D()
+        self.getActvSmap        = actv_method()
+        self.getGradSmap        = grad_method()
+        self.layers             = layers
+        self.model              = model
+        self.grad_pooling       = grad_pooling
+        self.num_classes        = num_classes
+        self.use_GradCAM        = use_GradCAM
+        self.interp_pooling     = interp_pooling
+        self.do_first_forward   = do_first_forward
+        self.auto_layer         = 'BatchNorm2d'
+        self.getNorm            = norm.GaussNorm2D() #norm.GammaNorm2D()
         
         if layers is None:
             self.auto_layers    = True
@@ -199,25 +199,33 @@ class BiDiCAM(nn.Module):
                 Auto defined layers. Here we will process all layers of a certain type as defined by the use.
                 This might commonly be all ReLUs or all Conv layers.
             '''
-            for m in self.model.modules(): 
+            for i,m in enumerate(self.model.modules()): 
                 if self.auto_layer in str(type(m)):    
-                    m._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
-                    h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
-                    _   = m.register_forward_hook(h)
-                    self.activation_hooks.append(h)
+                    m._forward_hooks    = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
+                    m._backward_hooks   = OrderedDict()
                     
-                    m._backward_hook    = OrderedDict()
+                    if self.do_first_forward and len(self.activation_hooks) > 0:
+                        pass
+                    else:
+                        h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
+                        _   = m.register_forward_hook(h)
+                        self.activation_hooks.append(h)
+                    
                     h   = misc.CaptureGradInput(post_process=None, device=input.device) # The gradient information leaving the layer
                     _   = m.register_backward_hook(h)
                     self.gradient_hooks.append(h) 
         else:            
             for i,l in enumerate(self.layers):
-                self.model._modules[l]._forward_hooks   = OrderedDict()
-                h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
-                _   = self.model._modules[l].register_forward_hook(h)
-                self.activation_hooks.append(h)
-    
-                self.model._modules[l]._backward_hook    = OrderedDict()
+                self.model._modules[l]._forward_hooks    = OrderedDict()
+                self.model._modules[l]._backward_hooks   = OrderedDict()
+                
+                if self.do_first_forward and i>0:
+                    pass
+                else:
+                    h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
+                    _   = self.model._modules[l].register_forward_hook(h)
+                    self.activation_hooks.append(h)
+
                 h   = misc.CaptureGradInput(post_process=None, device=input.device) # The gradient information leaving the layer
                 _   = self.model._modules[l].register_backward_hook(h)
                 self.gradient_hooks.append(h)
@@ -246,10 +254,13 @@ class BiDiCAM(nn.Module):
             for i,l in enumerate(self.layers):
             
                 gradients           = self.gradient_hooks[i].data
-                activations         = self.activation_hooks[i].data
-                
                 gb, gk, gu, gv      = gradients.size()
-                ab, ak, au, av      = activations.size()
+                
+                if self.do_first_forward and i>0:
+                    pass
+                else:
+                    activations         = self.activation_hooks[i].data
+                    ab, ak, au, av      = activations.size()
                 
                 if self.use_GradCAM:
                     alpha               = gradients.view(gb, gk, -1).mean(2)
@@ -278,11 +289,14 @@ class BiDiCAM(nn.Module):
                     grad_map            = self._proc_salmap(gradients, self.getGradSmap, gb, gu, gv)
                     gradients           = ratio*cam_map + (1.0 - ratio)*grad_map
                 else:
-                    gradients = self._proc_salmap(gradients, self.getGradSmap, gb, gu, gv)
+                    gradients           = self._proc_salmap(gradients, self.getGradSmap, gb, gu, gv)
                 
                 backward_saliency_maps.append(gradients)
                 
-                forward_saliency_maps.append(self._proc_salmap(activations, self.getActvSmap, ab, au, av))
+                if self.do_first_forward and i>0:
+                    pass
+                else:
+                    forward_saliency_maps.append(self._proc_salmap(activations, self.getActvSmap, ab, au, av))
                 
         return forward_saliency_maps, backward_saliency_maps, logit  
     
@@ -297,10 +311,18 @@ class BiDiCAMModel(nn.Module):
         
         self.do_first_forward   = do_first_forward
         
-        self.bidicam            = BiDiCAM(model, layers, **kwargs)
+        self.bidicam            = BiDiCAM(model, layers, do_first_forward=do_first_forward, **kwargs)
         
-        self.combine_maps       = maps.CombineSaliencyMaps(output_size=output_size, map_num=len(self.bidicam.layers), weights=weights, 
+        if self.do_first_forward:
+            self.combine_maps_act       = maps.CombineSaliencyMaps(output_size=output_size, map_num=1, weights=weights, 
+                                                               resize_mode=resize_mode, do_relu=do_relu)
+        else:
+            self.combine_maps_act       = maps.CombineSaliencyMaps(output_size=output_size, map_num=len(self.bidicam.layers), weights=weights, 
+                                                               resize_mode=resize_mode, do_relu=do_relu)
+            
+        self.combine_maps_grad  = maps.CombineSaliencyMaps(output_size=output_size, map_num=len(self.bidicam.layers), weights=weights, 
                                                            resize_mode=resize_mode, do_relu=do_relu)
+
         
     
     def __call__(self, input, **kwargs):
@@ -308,19 +330,18 @@ class BiDiCAMModel(nn.Module):
             
         forward_saliency_maps, backward_saliency_maps, logit    = self.bidicam(input, **kwargs)
         
-        forward_combined_map, forward_saliency_maps             = self.combine_maps(forward_saliency_maps)
-        backward_combined_map, backward_saliency_maps           = self.combine_maps(backward_saliency_maps)
-        
-        backward_saliency_maps                                  = misc.RangeNormalize(backward_saliency_maps)
-        backward_combined_map                                   = misc.RangeNormalize(backward_combined_map)
-        
-        if self.do_first_forward:
-            saliency_maps                                           = forward_saliency_maps[:,0,]*backward_saliency_maps 
-            combined_map                                            = forward_saliency_maps[:,0,]*backward_combined_map
-        else:
-            saliency_maps                                           = forward_saliency_maps*backward_saliency_maps 
-            combined_map                                            = forward_combined_map*backward_combined_map
-        
+        with torch.set_grad_enabled(False):
+
+            forward_combined_map, _     = self.combine_maps_act(forward_saliency_maps)    
+            backward_combined_map, _    = self.combine_maps_grad(backward_saliency_maps)
+            
+            backward_combined_map       = misc.RangeNormalize(backward_combined_map)
+            
+            combined_map                = forward_combined_map*backward_combined_map
+                    
+            saliency_maps               = torch.ones_like(combined_map)
         
         return combined_map, saliency_maps, logit
+    
+    
     

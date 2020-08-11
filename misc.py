@@ -50,7 +50,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-import maps
+from . import maps
 
 from torchvision import models, transforms
 from statistics import stdev # Built-in

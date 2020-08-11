@@ -53,9 +53,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import norm
-import misc
-import resnet
+from . import norm
+from . import misc
+from . import resnet
 
 
 
@@ -897,7 +897,6 @@ class SaliencyModel(nn.Module):
             r'''
                 Get the activation for each layer in our list. Then compute saliency and normalize.
             '''
-            '''
             for i,l in enumerate(self.layers):
             
                 activations         = self.activation_hooks[i].data
@@ -906,17 +905,17 @@ class SaliencyModel(nn.Module):
                 saliency_map        = self.get_norm(self.get_smap(activations)).view(b, u, v)
                                     
                 saliency_maps.append(saliency_map)
-            '''
+    
         r'''
             Combine each saliency map together into a single 2D saliency map. This is outside the 
             set_grad_enabled loop since it might need grads if doing FastCAM.  
         '''
-        '''
+        
         combined_map, saliency_maps = self.combine_maps(saliency_maps)
-        '''
+        
         # FUDGE TO RUN CAM ONLY
-        combined_map    = torch.ones_like(cam_map)
-        saliency_maps   = torch.ones_like(cam_map)
+        #combined_map    = torch.ones_like(cam_map)
+        #saliency_maps   = torch.ones_like(cam_map)
         
         r'''
             If we computed a CAM, combine it with the forward only saliency map.
@@ -925,15 +924,15 @@ class SaliencyModel(nn.Module):
             if self.do_nonclass_map:
                 combined_map = combined_map*(1.0 - cam_map)
                 if self.cam_each_map:
-                    saliency_maps = saliency_maps#.squeeze(0)
+                    saliency_maps = saliency_maps.squeeze(0)
                     saliency_maps = saliency_maps*(1.0 - cam_map)
-                    saliency_maps = saliency_maps#.unsqueeze(0)
+                    saliency_maps = saliency_maps.unsqueeze(0)
             else:                
                 combined_map = combined_map * cam_map
                 if self.cam_each_map:
-                    saliency_maps = saliency_maps#.squeeze(0)
+                    saliency_maps = saliency_maps.squeeze(0)
                     saliency_maps = saliency_maps*cam_map
-                    saliency_maps = saliency_maps#.unsqueeze(0)
+                    saliency_maps = saliency_maps.unsqueeze(0)
             
         return combined_map, saliency_maps, logit
     

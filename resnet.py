@@ -50,7 +50,8 @@ from torchvision import models
 from torchvision.models.utils import load_state_dict_from_url
 import torch.nn.functional as F
 import torch
-import norm
+
+from . import norm
 
 # *******************************************************************************************************************       
 class ScoreMap(torch.autograd.Function):
