@@ -275,7 +275,9 @@ class BiDiCAM(nn.Module):
                 if self.use_GradCAM:
                     alpha               = gradients.view(gb, gk, -1).mean(2)
                     weights             = alpha.view(gb, gk, 1, 1)
-                    cam_map             = self.getNorm((weights*activations).sum(1, keepdim=True).squeeze(0))
+                    cam_map             = (weights*activations).sum(1, keepdim=True)
+                    cam_map             = cam_map.reshape(gb, gu, gv)
+                    cam_map             = self.getNorm(cam_map)
                 
                 if self.grad_pooling == 'avg':
                     gradients           = F.avg_pool2d(gradients, kernel_size=2, stride=2, padding=0, ceil_mode=True)
