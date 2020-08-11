@@ -50,7 +50,10 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-import maps
+try:
+    from . import maps    
+except ImportError:
+    import maps
 
 from torchvision import models, transforms
 from statistics import stdev # Built-in

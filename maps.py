@@ -53,9 +53,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import norm
-import misc
-import resnet
+try:
+    from . import norm
+    from . import misc
+    from . import resnet
+except ImportError:
+    import norm
+    import misc
+    import resnet
 
 
 
@@ -868,6 +873,7 @@ class SaliencyModel(nn.Module):
                 For each we attach a hook to get the layer activations back after the 
                 network runs the data.
             '''
+            
             for i,l in enumerate(self.layers):
                 self.model._modules[l]._forward_hooks   = OrderedDict()  # PyTorch bug work around, patch is available, but not everyone may be patched
                 h   = misc.CaptureLayerOutput(post_process=None, device=input.device)
@@ -904,12 +910,17 @@ class SaliencyModel(nn.Module):
                 saliency_map        = self.get_norm(self.get_smap(activations)).view(b, u, v)
                                     
                 saliency_maps.append(saliency_map)
-        
+    
         r'''
             Combine each saliency map together into a single 2D saliency map. This is outside the 
             set_grad_enabled loop since it might need grads if doing FastCAM.  
         '''
+        
         combined_map, saliency_maps = self.combine_maps(saliency_maps)
+        
+        # FUDGE TO RUN CAM ONLY
+        #combined_map    = torch.ones_like(cam_map)
+        #saliency_maps   = torch.ones_like(cam_map)
         
         r'''
             If we computed a CAM, combine it with the forward only saliency map.

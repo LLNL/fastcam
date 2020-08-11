@@ -48,7 +48,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import maps
+try:
+    from . import maps 
+except ImportError:
+    import maps 
+    
+
 
 class ConditionalSaliencyMaps(maps.CombineSaliencyMaps): 
     r'''
