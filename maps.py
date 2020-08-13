@@ -53,6 +53,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# A little hacky but this fixes something special
 try:
     from . import norm
     from . import misc
