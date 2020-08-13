@@ -178,7 +178,8 @@ getSmap     = maps.SMOEScaleMap()
 # In[12]:
 
 
-getNorm     = norm.GammaNorm2D()  
+#getNorm     = norm.GaussNorm2D()
+getNorm     = norm.GammaNorm2D() # A little more accurate, but much slower
 
 
 # Now we will create an object to combine the five saliency maps from each scale into one.

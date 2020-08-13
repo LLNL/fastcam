@@ -55,9 +55,8 @@ in_width            = 224                                       # Size to scale 
 # In[5]:
 
 
-weights             = [0.18, 0.15, 0.37, 0.4, 0.72]             # Our saliency layer weights 
-                                                                # From paper:
-                                                                # https://arxiv.org/abs/1911.11293
+weights             = [1.0, 1.0, 1.0, 1.0, 1.0]                    # Equal Weights work best 
+                                                                   # when using with GradCAM 
 layers              = ['relu','layer1','layer2','layer3','layer4']
 
 
@@ -130,21 +129,22 @@ raw_tensor  = F.interpolate(raw_tensor, size=(in_height, in_width), mode='biline
 
 # ### Set Up Saliency Objects
 
-# We create an object to create the saliency map given the model and layers we have selected. 
+# Choose our layer normalization method. 
 
 # In[13]:
 
 
-getSalmap   = maps.SaliencyMap(model, layers, output_size=[in_height,in_width],weights=weights)
+#norm_method     = norm.GaussNorm2D
+norm_method     = norm.GammaNorm2D # A little more accurate, but much slower
 
 
-# **OPTIONAL:** We can run with a Gamma CDF based normalization which is a little slower, but gives slightly better ROAR/KARR scores.
+# We create an object to create the saliency map given the model and layers we have selected. 
 
 # In[14]:
 
 
-#getSalmap   = maps.SaliencyMap(model, layers, output_size=[in_height,in_width],weights=weights,
-#                              norm_method=norm.GammaNorm2D)
+getSalmap   = maps.SaliencyModel(model, layers, output_size=[in_height,in_width], weights=weights, 
+                                 norm_method=norm_method)
 
 
 # Now we set up our masking object to create a nice mask image of the %10 most salient locations. You will see the results below when it is run.
