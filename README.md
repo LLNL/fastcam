@@ -25,7 +25,8 @@ We compute the saliency map by computing the *conditional entropy* between the m
 The FastCAM package runs on **Python 3.x**. The package should run on **Python 2.x**. However, since 
 the end of product life for 2.x has been announced, we will not actively support it going forward. 
 All extra requirements are available through *pip* installation. On *IBM Power* based architecture, 
-some packages may have to be hand installed, but it's totally doable. 
+some packages may have to be hand installed, but it's totally doable. We have tested on Linux, MacOS and Windows.
+Let us know if you have any issues. 
 
 The primary functionality is demonstrated using a **Jupyter notebook**. By following it, you should be
 able to see how to use FastCAM on your own deep network. 
