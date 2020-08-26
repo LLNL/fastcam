@@ -769,6 +769,10 @@ class SaliencyModel(nn.Module):
                             will be used to make each saliency map this size. Default [224,224]
             resize_mode:    Is given to Torch nn.functional.interpolate. Whatever it supports will work here. 
             do_relu:        Should we do a final clamp on values to set all negative values to 0?
+            cam_method:     A string with the method for running CAM. Can be:
+                                gradcam   - Default, Standard GradCAM from Selvaraju 2017
+                                gradcampp - GradCAM++ from from Chattopadhyay 2018
+                                xgradcam  - XGradCAM from Fu 2020
             
         Will Return:
         
