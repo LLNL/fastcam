@@ -53,7 +53,7 @@ This will run our [Jupyter Notebook](https://github.com/LLNL/fastcam/blob/master
 
 **Double Optionally** if you just want to run it and really really really don't care about how it works use our [notebook for the exceptionally impatient](https://github.com/LLNL/fastcam/blob/master/demo_very-simple_fast-cam.ipynb).
 
-**Experimentally** we have a [PyTorch Captum framework version of FastCAM](https://github.com/LLNL/fastcam/blob/master/demo-captum.ipynb)
+**Experimentally** we have a [PyTorch Captum framework version of FastCAM](https://github.com/LLNL/fastcam/blob/master/demo-captum.ipynb).
 
 These are our recommended installation steps:
 
