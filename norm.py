@@ -333,7 +333,7 @@ class GammaNorm2D(nn.Module):
         x       = x.reshape(s0,s1*s2) 
         
         r'''
-            offset from just a little more than 0, keeps k sane
+            offset from just a little more than 0, keeps k sane. 
         '''
         x       = x - torch.min(x,dim=1)[0].reshape(s0,1) + 0.0000001
         

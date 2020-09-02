@@ -263,7 +263,7 @@ class ResNet_FastCAM(models.ResNet):
                 weights             = alpha.view(b, k, 1, 1)
             elif method=='xgradcam':
                 r'''
-                    XGradCAM Model
+                    XGradCAM Computation
                 '''
                 alpha               = (gradients*activations).view(b, k, -1).sum(2)
                 alpha               = alpha / (activations.view(b, k, -1).sum(2) + 1e-6)

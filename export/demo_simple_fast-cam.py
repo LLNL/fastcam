@@ -38,6 +38,7 @@ warnings.filterwarnings('ignore')
 import maps
 import misc
 import mask
+import norm
 import resnet
 
 
@@ -47,7 +48,6 @@ import resnet
 
 
 input_image_name    = "ILSVRC2012_val_00049934.224x224.png"     # Our input image to process 
-
 output_dir          = 'outputs'                                 # Where to save our output images
 input_dir           = 'images'                                  # Where to load our inputs from
 
@@ -98,10 +98,22 @@ model               = model.to(device)
 
 layers              = ['relu','layer1','layer2','layer3','layer4']
 
+# It will auto select each bottle neck layer if we instead set to None. 
+#layers              = None
+
+
+# Choose how we want to normalize each map. 
+
+# In[9]:
+
+
+#norm_method     = norm.GaussNorm2D
+norm_method     = norm.GammaNorm2D # A little more accurate, but much slower
+
 
 # Lets load in our image. We will do a simple resize on it.
 
-# In[9]:
+# In[10]:
 
 
 in_tensor   = misc.LoadImageToTensor(load_image_name, device)
@@ -110,16 +122,16 @@ in_tensor   = F.interpolate(in_tensor, size=(in_height, in_width), mode='bilinea
 
 # Create our saliency map object. We hand it our Torch model and names for the layers we want to tap. 
 
-# In[10]:
+# In[11]:
 
 
-get_salmap  = maps.SaliencyModel(model, layers, output_size=[in_height,in_width],
-                                 weights=weights)
+get_salmap  = maps.SaliencyModel(model, layers, output_size=[in_height,in_width], weights=weights, 
+                                 norm_method=norm_method)
 
 
 # Lets got ahead and run the network and get back the saliency map 
 
-# In[11]:
+# In[12]:
 
 
 csmap,smaps,_ = get_salmap(in_tensor)
@@ -131,7 +143,7 @@ csmap,smaps,_ = get_salmap(in_tensor)
 # 
 # **NOTE** much of this code is borrowed from the Pytorch GradCAM package. 
 
-# In[12]:
+# In[13]:
 
 
 resnet_gradcampp4   = GradCAMpp.from_config(model_type='resnet', arch=model, layer_name='layer4')
@@ -139,7 +151,7 @@ resnet_gradcampp4   = GradCAMpp.from_config(model_type='resnet', arch=model, lay
 
 # Let's get our original input image back. We will just use this one for visualization. 
 
-# In[13]:
+# In[14]:
 
 
 raw_tensor  = misc.LoadImageToTensor(load_image_name, device, norm=False)
@@ -148,7 +160,7 @@ raw_tensor  = F.interpolate(raw_tensor, size=(in_height, in_width), mode='biline
 
 # We create an object to get back the mask of the saliency map
 
-# In[14]:
+# In[15]:
 
 
 getMask     = mask.SaliencyMaskDropout(keep_percent = 0.1, scale_map=False)
@@ -156,7 +168,7 @@ getMask     = mask.SaliencyMaskDropout(keep_percent = 0.1, scale_map=False)
 
 # Now we will create illustrations of the combined saliency map. 
 
-# In[15]:
+# In[16]:
 
 
 images      = misc.TileOutput(raw_tensor,csmap,getMask)
@@ -164,7 +176,7 @@ images      = misc.TileOutput(raw_tensor,csmap,getMask)
 
 # Now, lets get the Grad-CAM++ saliency map only.
 
-# In[16]:
+# In[17]:
 
 
 cam_map, logit = resnet_gradcampp4(in_tensor)
@@ -172,7 +184,7 @@ cam_map, logit = resnet_gradcampp4(in_tensor)
 
 # Let's double check and make sure it's picking the correct class
 
-# In[17]:
+# In[18]:
 
 
 too_logit = logit.max(1)
@@ -181,16 +193,16 @@ print("Network Class Output: {} : Value {} ".format(too_logit[1][0],too_logit[0]
 
 # Now visualize the results
 
-# In[18]:
+# In[19]:
 
 
-images      = misc.TileOutput(raw_tensor,cam_map.squeeze(0),getMask,images)
+images      = misc.TileOutput(raw_tensor, cam_map.squeeze(0), getMask, images)
 
 
 # ### Combined CAM and SMOE Scale Maps
 # Now we combine the Grad-CAM map and the SMOE Scale saliency maps in the same way we would combine Grad-CAM with Guided Backprop.
 
-# In[19]:
+# In[20]:
 
 
 fastcam_map = csmap*cam_map
@@ -198,16 +210,16 @@ fastcam_map = csmap*cam_map
 
 # Now let's visualize the combined saliency map from SMOE Scale and GradCAM++.
 
-# In[20]:
+# In[21]:
 
 
-images      = misc.TileOutput(raw_tensor,fastcam_map.squeeze(0),getMask,images)
+images      = misc.TileOutput(raw_tensor, fastcam_map.squeeze(0), getMask, images)
 
 
 # ### Get Non-class map
 # Now we combine the Grad-CAM map and the SMOE Scale saliency maps but create a map of the **non-class** objects. These are salient locations that the network found interesting, but are not part of the object class. 
 
-# In[21]:
+# In[22]:
 
 
 nonclass_map = csmap*(1.0 - cam_map)
@@ -215,16 +227,16 @@ nonclass_map = csmap*(1.0 - cam_map)
 
 # Now let's visualize the combined non-class saliency map from SMOE Scale and GradCAM++.
 
-# In[22]:
+# In[23]:
 
 
-images      = misc.TileOutput(raw_tensor,nonclass_map.squeeze(0),getMask,images)
+images      = misc.TileOutput(raw_tensor, nonclass_map.squeeze(0), getMask, images)
 
 
 # ### Visualize this....
 # We now put all the images into a nice grid for display.
 
-# In[23]:
+# In[24]:
 
 
 images      = make_grid(torch.cat(images,0), nrow=5)
@@ -232,7 +244,7 @@ images      = make_grid(torch.cat(images,0), nrow=5)
 
 # ... save and look at it. 
 
-# In[24]:
+# In[25]:
 
 
 output_name = "{}.CAM_PP.jpg".format(save_prefix)

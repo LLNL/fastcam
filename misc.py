@@ -395,6 +395,23 @@ def TileOutput(tensor, mask, mask_func, image_list = []):
     
     return image_list
 
+# *******************************************************************************************************************             
+def TileMaps(tensor, mask_1, mask_2, mask_3, image_list = []):
+
+    assert torch.is_tensor(tensor)
+    assert torch.is_tensor(mask_1)
+    assert torch.is_tensor(mask_2)
+    assert torch.is_tensor(mask_3)
+
+    heatmap_1, _       = visualize_cam(mask_1, tensor)
+    heatmap_2, _       = visualize_cam(mask_2, tensor)
+    heatmap_3, _       = visualize_cam(mask_3, tensor)
+    
+    image_list.append(torch.stack([tensor.squeeze().cpu(), heatmap_1.cpu(), 
+                                   heatmap_2.cpu(), heatmap_3.cpu()], 0))
+    
+    return image_list
+
 # *******************************************************************************************************************
 def show_hist(tens,file_name=None, max_range=256):
     
